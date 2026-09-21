@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 type ButtonProps = {
   children: ReactNode;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "ghost";
 } & ButtonHTMLAttributes<HTMLButtonElement>;
 
 export default function Button({
@@ -11,16 +11,30 @@ export default function Button({
   className = "",
   ...props
 }: ButtonProps) {
-  const styles = {
-    primary: "bg-neutral-950 text-white hover:bg-neutral-800",
+  const variants = {
+    primary: "bg-[var(--foreground)] text-[var(--surface)] hover:opacity-85",
+
     secondary:
-      "border border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50",
+      "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-soft)]",
+
+    ghost: "text-[var(--muted)] hover:text-[var(--foreground)]",
   };
 
   return (
     <button
-      className={`rounded-xl px-4 py-2 text-sm font-medium transition ${styles[variant]} ${className}`}
       {...props}
+      className={`
+        rounded-xl
+        px-4
+        py-2.5
+        text-sm
+        font-medium
+        transition
+        disabled:pointer-events-none
+        disabled:opacity-50
+        ${variants[variant]}
+        ${className}
+      `}
     >
       {children}
     </button>

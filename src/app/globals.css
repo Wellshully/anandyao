@@ -1,26 +1,72 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8f6f1;
+  --surface: #fffdf9;
+  --surface-soft: #f1ede5;
+
+  --foreground: #26231f;
+  --muted: #827b72;
+
+  --border: #e3ddd3;
+
+  --accent: #a85f68;
+  --accent-soft: #f2e3e4;
+
+  --danger: #b34a4a;
+
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 28px;
+
+  --birthday-background: #181513;
+  --birthday-surface: #211e1b;
+  --birthday-foreground: #f5efe7;
+  --birthday-muted: #a69c91;
+  --birthday-accent: #c98b92;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--background);
 }
 
 body {
-  background: var(--background);
+  margin: 0;
+
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(168, 95, 104, 0.05),
+      transparent 30rem
+    ),
+    var(--background);
+
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+
+  font-family: var(--font-sans), sans-serif;
+
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+a {
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.font-story {
+  font-family: var(--font-serif), serif;
 }

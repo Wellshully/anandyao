@@ -40,7 +40,7 @@ export default async function PlacesPage() {
 
         <Link
           href="/places/new"
-          className="rounded-xl bg-neutral-950 px-4 py-2 text-sm font-medium text-white"
+          className="rounded-xl bg-[var(--foreground)] px-4 py-2 text-sm font-medium text-white"
         >
           New place
         </Link>

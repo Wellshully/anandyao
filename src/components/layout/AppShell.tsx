@@ -9,7 +9,7 @@ type AppShellProps = {
 
 export default function AppShell({ children }: AppShellProps) {
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-950">
+    <div className="min-h-screen">
       <SiteHeader />
 
       <Container className="py-8 sm:py-10">{children}</Container>

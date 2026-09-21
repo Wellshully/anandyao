@@ -1,0 +1,26 @@
+export const HOME_FEATURES = [
+  {
+    index: "01",
+    title: "Memories",
+    href: "/memories",
+    description: "把照片、日期、地點和故事留在這裡。",
+  },
+  {
+    index: "02",
+    title: "Places",
+    href: "/places",
+    description: "記下我們想去、去過，還想再去的地方。",
+  },
+  {
+    index: "03",
+    title: "Calendar",
+    href: "/calendar",
+    description: "放著我們之後要一起做的事情。",
+  },
+  {
+    index: "04",
+    title: "Journal",
+    href: "/journal",
+    description: "那些不一定需要理由，但想記住的日常。",
+  },
+] as const;

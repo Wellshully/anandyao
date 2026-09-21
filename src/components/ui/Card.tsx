@@ -8,7 +8,13 @@ type CardProps = {
 export default function Card({ children, className = "" }: CardProps) {
   return (
     <div
-      className={`rounded-2xl border border-neutral-200 bg-white p-5 ${className}`}
+      className={`
+        rounded-[var(--radius-md)]
+        border
+        border-[var(--border)]
+        bg-[var(--surface)]
+        ${className}
+      `}
     >
       {children}
     </div>
