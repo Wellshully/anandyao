@@ -11,7 +11,7 @@ export default function NormalHome() {
       <section>
         <div>
           <p className="text-sm text-neutral-500">
-            Our little place on the internet.
+            Our little place on the internet. :)
           </p>
 
           <h1 className="mt-2 text-4xl font-semibold tracking-tight">
