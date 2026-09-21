@@ -8,7 +8,10 @@ export const siteConfig = {
     month: 10,
     day: 29,
   },
-
+  space: {
+    name: "An & Yao",
+    slug: "an-and-yao",
+  },
   navigation: [
     {
       label: "Home",

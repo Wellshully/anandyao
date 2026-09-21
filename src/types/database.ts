@@ -261,6 +261,7 @@ export type Database = {
           created_by: string | null
           id: string
           name: string
+          slug: string
           updated_at: string
         }
         Insert: {
@@ -268,6 +269,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           name: string
+          slug: string
           updated_at?: string
         }
         Update: {
@@ -275,6 +277,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           name?: string
+          slug?: string
           updated_at?: string
         }
         Relationships: []
@@ -284,7 +287,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_initial_space: {
+        Args: { space_name: string; space_slug: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
