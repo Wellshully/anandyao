@@ -105,6 +105,56 @@ export type Database = {
           },
         ]
       }
+      media: {
+        Row: {
+          alt_text: string | null
+          created_at: string
+          file_name: string
+          file_size: number | null
+          height: number | null
+          id: string
+          mime_type: string | null
+          space_id: string
+          storage_path: string
+          uploaded_by: string | null
+          width: number | null
+        }
+        Insert: {
+          alt_text?: string | null
+          created_at?: string
+          file_name: string
+          file_size?: number | null
+          height?: number | null
+          id?: string
+          mime_type?: string | null
+          space_id: string
+          storage_path: string
+          uploaded_by?: string | null
+          width?: number | null
+        }
+        Update: {
+          alt_text?: string | null
+          created_at?: string
+          file_name?: string
+          file_size?: number | null
+          height?: number | null
+          id?: string
+          mime_type?: string | null
+          space_id?: string
+          storage_path?: string
+          uploaded_by?: string | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       memories: {
         Row: {
           body: string | null
