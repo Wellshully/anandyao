@@ -199,6 +199,45 @@ export type Database = {
           },
         ]
       }
+      memory_media: {
+        Row: {
+          caption: string | null
+          created_at: string
+          media_id: string
+          memory_id: string
+          sort_order: number
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          media_id: string
+          memory_id: string
+          sort_order?: number
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          media_id?: string
+          memory_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memory_media_media_id_fkey"
+            columns: ["media_id"]
+            isOneToOne: false
+            referencedRelation: "media"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memory_media_memory_id_fkey"
+            columns: ["memory_id"]
+            isOneToOne: false
+            referencedRelation: "memories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       places: {
         Row: {
           address: string | null
