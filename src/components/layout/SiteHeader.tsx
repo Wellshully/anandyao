@@ -1,27 +1,45 @@
 import Link from "next/link";
 
+import Container from "@/components/ui/Container";
 import { siteConfig } from "@/config/site";
 
 export default function SiteHeader() {
   return (
-    <header className="border-b border-neutral-200">
-      <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
-        <Link href="/" className="text-lg font-semibold tracking-tight">
-          {siteConfig.name}
-        </Link>
+    <header className="border-b border-neutral-200 bg-white">
+      <Container>
+        <div className="flex min-h-16 items-center justify-between gap-4">
+          <Link
+            href="/"
+            className="shrink-0 text-lg font-semibold tracking-tight"
+          >
+            {siteConfig.name}
+          </Link>
 
-        <nav className="flex items-center gap-6">
-          {siteConfig.navigation.slice(1).map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="text-sm text-neutral-500 transition-colors hover:text-neutral-950"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </div>
+          <nav className="hidden items-center gap-6 md:flex">
+            {siteConfig.navigation.slice(1).map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="text-sm text-neutral-500 transition hover:text-neutral-950"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <nav className="flex items-center gap-3 overflow-x-auto md:hidden">
+            {siteConfig.navigation.slice(1).map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="whitespace-nowrap text-xs text-neutral-500"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </Container>
     </header>
   );
 }
