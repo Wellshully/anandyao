@@ -71,7 +71,9 @@ export type Database = {
           created_at: string
           entry_date: string
           id: string
+          published_at: string | null
           space_id: string
+          status: string
           title: string
           updated_at: string
         }
@@ -81,7 +83,9 @@ export type Database = {
           created_at?: string
           entry_date: string
           id?: string
+          published_at?: string | null
           space_id: string
+          status?: string
           title: string
           updated_at?: string
         }
@@ -91,7 +95,9 @@ export type Database = {
           created_at?: string
           entry_date?: string
           id?: string
+          published_at?: string | null
           space_id?: string
+          status?: string
           title?: string
           updated_at?: string
         }

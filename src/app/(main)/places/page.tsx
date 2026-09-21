@@ -1,9 +1,6 @@
 import Link from "next/link";
 
-import {
-  PLACE_STATUSES,
-  type PlaceStatus,
-} from "@/features/places/config/place-status";
+import { PLACE_STATUSES } from "@/features/places/config/place-status";
 import { requireSpace } from "@/lib/space/require-space";
 import { createClient } from "@/lib/supabase/server";
 
