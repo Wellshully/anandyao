@@ -12,12 +12,18 @@ import { reorderItineraryAction } from "@/features/dates/actions";
 
 import { calculateItinerarySchedule } from "@/features/dates/lib/calculate-itinerary-schedule";
 
+import { getItineraryTimeState } from "@/features/dates/lib/get-itinerary-time-state";
+
+import { useCurrentTime } from "@/lib/time/use-current-time";
+
 import type { DateItineraryItem } from "@/features/dates/types";
 
 type SortableItineraryListProps = {
   dateId: string;
 
   dateDayId: string;
+
+  date: string;
 
   planningStartTime: string;
 
@@ -27,10 +33,13 @@ type SortableItineraryListProps = {
 export default function SortableItineraryList({
   dateId,
   dateDayId,
+  date,
   planningStartTime,
   items,
 }: SortableItineraryListProps) {
   const router = useRouter();
+
+  const now = useCurrentTime();
 
   const initialOrder = items.map((item) => item.id);
 
@@ -117,6 +126,19 @@ export default function SortableItineraryList({
         {orderedItems.map((item) => {
           const scheduled = scheduleMap.get(item.id);
 
+          const timeInfo =
+            scheduled && now
+              ? getItineraryTimeState({
+                  date,
+
+                  startMinutes: scheduled.startMinutes,
+
+                  endMinutes: scheduled.endMinutes,
+
+                  now,
+                })
+              : undefined;
+
           return (
             <Reorder.Item
               key={item.id}
@@ -137,6 +159,9 @@ export default function SortableItineraryList({
                 item={item}
                 scheduledTime={scheduled?.displayStartTime}
                 hasConflict={scheduled?.hasConflict}
+                timeState={timeInfo?.state}
+                isSoon={timeInfo?.isSoon}
+                minutesUntilStart={timeInfo?.minutesUntilStart}
               />
             </Reorder.Item>
           );

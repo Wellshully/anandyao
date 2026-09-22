@@ -1,12 +1,16 @@
 import DateDaySection from "@/features/dates/components/DateDaySection";
 
+import { getRestaurants } from "@/features/eat/lib/get-restaurants";
+
+import { getPlannerPlaces } from "@/features/dates/lib/get-planner-places";
+
 import type { DateDetails } from "@/features/dates/types";
 
 type DatePlannerProps = {
   details: DateDetails;
 };
 
-export default function DatePlanner({ details }: DatePlannerProps) {
+export default async function DatePlanner({ details }: DatePlannerProps) {
   const canPlan =
     details.date.status === "accepted" &&
     details.currentUserParticipant?.status === "accepted";
@@ -29,6 +33,11 @@ export default function DatePlanner({ details }: DatePlannerProps) {
     );
   }
 
+  const [restaurants, places] = await Promise.all([
+    getRestaurants(),
+    getPlannerPlaces(),
+  ]);
+
   return (
     <div className="space-y-14">
       {details.days.map((plannerDay) => (
@@ -37,6 +46,8 @@ export default function DatePlanner({ details }: DatePlannerProps) {
           dateId={details.date.id}
           plannerDay={plannerDay}
           canPlan={canPlan}
+          restaurants={restaurants}
+          places={places}
         />
       ))}
     </div>

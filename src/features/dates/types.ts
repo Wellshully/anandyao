@@ -67,6 +67,9 @@ export type AddItineraryInput = {
   fixedStartTime?: string;
 
   durationMinutes: number;
+
+  restaurantId?: string;
+  placeId?: string;
 };
 
 export type DatePlannerDay = {
@@ -83,3 +86,7 @@ export type DateDetails = {
 
   currentUserParticipant?: DateParticipantSummary;
 };
+export type PlannerPlace = Pick<
+  Database["public"]["Tables"]["places"]["Row"],
+  "id" | "name" | "status" | "note" | "address" | "latitude" | "longitude"
+>;

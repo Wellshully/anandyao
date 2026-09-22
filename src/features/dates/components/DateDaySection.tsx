@@ -1,7 +1,9 @@
 import AddItineraryForm from "@/features/dates/components/AddItineraryForm";
 import SortableItineraryList from "@/features/dates/components/SortableItineraryList";
 
-import type { DatePlannerDay } from "@/features/dates/types";
+import type { DatePlannerDay, PlannerPlace } from "@/features/dates/types";
+
+import type { Restaurant } from "@/features/eat/types";
 
 type DateDaySectionProps = {
   dateId: string;
@@ -9,12 +11,17 @@ type DateDaySectionProps = {
   plannerDay: DatePlannerDay;
 
   canPlan: boolean;
+
+  restaurants: Restaurant[];
+
+  places: PlannerPlace[];
 };
 
 const formatter = new Intl.DateTimeFormat("zh-TW", {
   timeZone: "Asia/Taipei",
 
   month: "long",
+
   day: "numeric",
 
   weekday: "short",
@@ -28,6 +35,8 @@ export default function DateDaySection({
   dateId,
   plannerDay,
   canPlan,
+  restaurants,
+  places,
 }: DateDaySectionProps) {
   const { day, items } = plannerDay;
 
@@ -72,6 +81,7 @@ export default function DateDaySection({
           <SortableItineraryList
             dateId={dateId}
             dateDayId={day.id}
+            date={day.date}
             planningStartTime={day.planning_start_time}
             items={items}
           />
@@ -80,7 +90,12 @@ export default function DateDaySection({
 
       {canPlan && (
         <div className="mt-4">
-          <AddItineraryForm dateId={dateId} dateDayId={day.id} />
+          <AddItineraryForm
+            dateId={dateId}
+            dateDayId={day.id}
+            restaurants={restaurants}
+            places={places}
+          />
         </div>
       )}
     </section>

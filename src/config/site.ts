@@ -3,7 +3,9 @@ export const siteConfig = {
   description: "Our little place on the internet.",
 
   timeZone: "Asia/Taipei",
-
+  relationship: {
+    startedAt: "2026-06-06",
+  },
   birthday: {
     month: 10,
     day: 29,

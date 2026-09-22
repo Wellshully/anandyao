@@ -1,6 +1,10 @@
+import Link from "next/link";
+
 import ItineraryActions from "@/features/dates/components/ItineraryActions";
 
 import type { DateItineraryItem } from "@/features/dates/types";
+
+import type { ItineraryTimeState } from "@/features/dates/lib/get-itinerary-time-state";
 
 type ItineraryCardProps = {
   dateId: string;
@@ -10,14 +14,25 @@ type ItineraryCardProps = {
   scheduledTime?: string;
 
   hasConflict?: boolean;
+
+  timeState?: ItineraryTimeState;
+
+  isSoon?: boolean;
+
+  minutesUntilStart?: number | null;
 };
 
 const TYPE_LABELS: Record<string, string> = {
   place: "景點",
+
   restaurant: "餐廳",
+
   transport: "交通",
+
   hotel: "住宿",
+
   activity: "活動",
+
   note: "備註",
 };
 
@@ -42,20 +57,45 @@ export default function ItineraryCard({
   item,
   scheduledTime,
   hasConflict = false,
+  timeState,
+  isSoon = false,
+  minutesUntilStart,
 }: ItineraryCardProps) {
+  const borderClass = hasConflict
+    ? "border-[var(--danger)]"
+    : timeState === "current" || isSoon
+      ? "border-[var(--accent)]"
+      : "border-[var(--border)]";
+
+  const stateClass =
+    timeState === "past"
+      ? `
+        bg-[var(--surface-soft)]
+        opacity-55
+      `
+      : timeState === "current"
+        ? `
+          bg-[var(--accent-soft)]
+          shadow-[0_8px_30px_rgba(38,35,31,0.05)]
+        `
+        : `
+          bg-[var(--surface)]
+        `;
+
   return (
     <article
       className={`
         rounded-[var(--radius-md)]
         border
-        bg-[var(--surface)]
         p-5
         transition
-
-        ${hasConflict ? "border-[var(--danger)]" : "border-[var(--border)]"}
+        ${borderClass}
+        ${stateClass}
       `}
     >
       <div className="flex gap-4">
+        {/* Drag handle */}
+
         <div
           className="
             flex
@@ -73,13 +113,44 @@ export default function ItineraryCard({
           ⋮⋮
         </div>
 
-        <div className="w-16 shrink-0">
-          <p className="font-medium">{scheduledTime ?? "—"}</p>
+        {/* Time */}
+
+        <div className="w-20 shrink-0">
+          <p
+            className="
+              font-medium
+              tabular-nums
+            "
+          >
+            {scheduledTime ?? "—"}
+          </p>
+
+          {timeState === "current" && (
+            <p className="mt-1 text-xs font-medium text-[var(--accent)]">
+              現在
+            </p>
+          )}
+
+          {isSoon &&
+            minutesUntilStart !== null &&
+            minutesUntilStart !== undefined && (
+              <p className="mt-1 text-[10px] leading-4 text-[var(--accent)]">
+                {minutesUntilStart <= 1
+                  ? "即將開始"
+                  : `還有 ${minutesUntilStart} 分鐘`}
+              </p>
+            )}
+
+          {timeState === "past" && (
+            <p className="mt-1 text-[10px] text-[var(--muted)]">已結束</p>
+          )}
 
           <p className="mt-1 text-[10px] uppercase tracking-wide text-[var(--muted)]">
             {item.timing_type === "fixed" ? "fixed" : "auto"}
           </p>
         </div>
+
+        {/* Content */}
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-4">
@@ -122,16 +193,27 @@ export default function ItineraryCard({
             </p>
           )}
 
-          {item.google_maps_url && (
-            <a
-              href={item.google_maps_url}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-4 inline-block text-sm text-[var(--accent)]"
-            >
-              Google Maps ↗
-            </a>
-          )}
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+            {item.restaurant_id && (
+              <Link
+                href={`/eat/${item.restaurant_id}`}
+                className="text-sm text-[var(--accent)]"
+              >
+                查看餐廳 →
+              </Link>
+            )}
+
+            {item.google_maps_url && (
+              <a
+                href={item.google_maps_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-[var(--accent)]"
+              >
+                Google Maps ↗
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </article>

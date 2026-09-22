@@ -6,7 +6,37 @@ import { requireSpace } from "@/lib/space/require-space";
 
 import { requireUser } from "@/lib/auth/require-user";
 
-import type { AddItineraryInput } from "@/features/dates/types";
+import type {
+  AddItineraryInput,
+  ItineraryItemType,
+} from "@/features/dates/types";
+
+function buildGoogleMapsUrl({
+  latitude,
+  longitude,
+  address,
+}: {
+  latitude: number | null;
+  longitude: number | null;
+  address: string | null;
+}) {
+  let query: string | null = null;
+
+  if (latitude !== null && longitude !== null) {
+    query = `${latitude},${longitude}`;
+  } else if (address) {
+    query = address;
+  }
+
+  if (!query) {
+    return null;
+  }
+
+  return (
+    "https://www.google.com/maps/search/?api=1&query=" +
+    encodeURIComponent(query)
+  );
+}
 
 export async function addItineraryItem(input: AddItineraryInput) {
   const [supabase, space, user] = await Promise.all([
@@ -15,10 +45,8 @@ export async function addItineraryItem(input: AddItineraryInput) {
     requireUser(),
   ]);
 
-  const title = input.title.trim();
-
-  if (!title) {
-    throw new Error("行程名稱不能為空。");
+  if (input.restaurantId && input.placeId) {
+    throw new Error("行程不能同時連結餐廳和地點。");
   }
 
   if (
@@ -49,6 +77,121 @@ export async function addItineraryItem(input: AddItineraryInput) {
     throw new Error("找不到這一天。");
   }
 
+  let itemType: ItineraryItemType = input.itemType;
+
+  let restaurantId: string | null = null;
+
+  let placeId: string | null = null;
+
+  let title = input.title.trim();
+
+  let locationName = input.locationName?.trim() || null;
+
+  let address = input.address?.trim() || null;
+
+  let googleMapsUrl = input.googleMapsUrl?.trim() || null;
+
+  let latitude: number | null = null;
+
+  let longitude: number | null = null;
+
+  /*
+   * Eat module
+   */
+  if (input.restaurantId) {
+    const { data: restaurant, error: restaurantError } = await supabase
+      .from("restaurants")
+      .select(
+        `
+          id,
+          name,
+          area,
+          address,
+          google_maps_url,
+          is_hidden
+        `,
+      )
+      .eq("id", input.restaurantId)
+      .eq("space_id", space.id)
+      .maybeSingle();
+
+    if (restaurantError) {
+      throw new Error(`Failed to load restaurant: ${restaurantError.message}`);
+    }
+
+    if (!restaurant) {
+      throw new Error("找不到這間餐廳。");
+    }
+
+    if (restaurant.is_hidden) {
+      throw new Error("這間餐廳目前已隱藏。");
+    }
+
+    restaurantId = restaurant.id;
+
+    itemType = "restaurant";
+
+    title = restaurant.name;
+
+    locationName = restaurant.area;
+
+    address = restaurant.address;
+
+    googleMapsUrl = restaurant.google_maps_url;
+  }
+
+  /*
+   * Places module
+   */
+  if (input.placeId) {
+    const { data: place, error: placeError } = await supabase
+      .from("places")
+      .select(
+        `
+          id,
+          name,
+          address,
+          latitude,
+          longitude
+        `,
+      )
+      .eq("id", input.placeId)
+      .eq("space_id", space.id)
+      .maybeSingle();
+
+    if (placeError) {
+      throw new Error(`Failed to load place: ${placeError.message}`);
+    }
+
+    if (!place) {
+      throw new Error("找不到這個地點。");
+    }
+
+    placeId = place.id;
+
+    itemType = "place";
+
+    title = place.name;
+
+    locationName = null;
+
+    address = place.address;
+
+    latitude = place.latitude;
+
+    longitude = place.longitude;
+
+    googleMapsUrl = buildGoogleMapsUrl({
+      latitude,
+      longitude,
+      address,
+    });
+  }
+
+  if (!title) {
+    throw new Error("行程名稱不能為空。");
+  }
+
   const { data: lastItem, error: orderError } = await supabase
     .from("date_itinerary_items")
     .select("sort_order")
@@ -77,17 +220,25 @@ export async function addItineraryItem(input: AddItineraryInput) {
 
       space_id: space.id,
 
-      item_type: input.itemType,
+      item_type: itemType,
+
+      restaurant_id: restaurantId,
+
+      place_id: placeId,
 
       title,
 
       description: input.description?.trim() || null,
 
-      location_name: input.locationName?.trim() || null,
+      location_name: locationName,
 
-      address: input.address?.trim() || null,
+      address,
 
-      google_maps_url: input.googleMapsUrl?.trim() || null,
+      latitude,
+
+      longitude,
+
+      google_maps_url: googleMapsUrl,
 
       sort_order: nextSortOrder,
 
