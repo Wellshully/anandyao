@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import { Reorder, motion } from "motion/react";
 
 import type {
@@ -31,15 +29,7 @@ export default function TimelineOrderInteraction({
   feedback,
   onChange,
 }: TimelineOrderInteractionProps) {
-  const initialOrder = value ?? items.map((item) => item.id);
-
-  const [order, setOrder] = useState(initialOrder);
-
-  useEffect(() => {
-    if (value) {
-      setOrder(value);
-    }
-  }, [value]);
+  const order = value ?? items.map((item) => item.id);
 
   const itemMap = new Map(items.map((item) => [item.id, item]));
 
@@ -51,8 +41,6 @@ export default function TimelineOrderInteraction({
     order.every((id, index) => id === correctOrder[index]);
 
   function handleReorder(nextOrder: string[]) {
-    setOrder(nextOrder);
-
     onChange(nextOrder);
   }
 

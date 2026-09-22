@@ -321,6 +321,128 @@ export type Database = {
         }
         Relationships: []
       }
+      restaurant_visits: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          restaurant_id: string
+          selected_by_picker: boolean
+          space_id: string
+          visited_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          restaurant_id: string
+          selected_by_picker?: boolean
+          space_id: string
+          visited_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          restaurant_id?: string
+          selected_by_picker?: boolean
+          space_id?: string
+          visited_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_visits_restaurant_space_fkey"
+            columns: ["restaurant_id", "space_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id", "space_id"]
+          },
+          {
+            foreignKeyName: "restaurant_visits_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restaurants: {
+        Row: {
+          address: string | null
+          area: string | null
+          contexts: string[]
+          created_at: string
+          created_by: string | null
+          cuisines: string[]
+          google_maps_url: string | null
+          google_place_id: string | null
+          id: string
+          is_hidden: boolean
+          latitude: number | null
+          longitude: number | null
+          name: string
+          note: string | null
+          price_level: number | null
+          source: string
+          source_key: string | null
+          space_id: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          area?: string | null
+          contexts?: string[]
+          created_at?: string
+          created_by?: string | null
+          cuisines?: string[]
+          google_maps_url?: string | null
+          google_place_id?: string | null
+          id?: string
+          is_hidden?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+          note?: string | null
+          price_level?: number | null
+          source?: string
+          source_key?: string | null
+          space_id: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          area?: string | null
+          contexts?: string[]
+          created_at?: string
+          created_by?: string | null
+          cuisines?: string[]
+          google_maps_url?: string | null
+          google_place_id?: string | null
+          id?: string
+          is_hidden?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+          note?: string | null
+          price_level?: number | null
+          source?: string
+          source_key?: string | null
+          space_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurants_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       space_members: {
         Row: {
           joined_at: string

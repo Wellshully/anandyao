@@ -13,12 +13,18 @@ export const HOME_FEATURES = [
   },
   {
     index: "03",
+    title: "Eat",
+    href: "/eat",
+    description: "不知道吃什麼的時候，就讓這裡幫我們決定。",
+  },
+  {
+    index: "04",
     title: "Calendar",
     href: "/calendar",
     description: "放著我們之後要一起做的事情。",
   },
   {
-    index: "04",
+    index: "05",
     title: "Journal",
     href: "/journal",
     description: "那些不一定需要理由，但想記住的日常。",

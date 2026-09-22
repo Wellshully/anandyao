@@ -26,6 +26,10 @@ export const siteConfig = {
       href: "/places",
     },
     {
+      label: "Eat",
+      href: "/eat",
+    },
+    {
       label: "Calendar",
       href: "/calendar",
     },
