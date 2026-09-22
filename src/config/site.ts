@@ -30,8 +30,8 @@ export const siteConfig = {
       href: "/eat",
     },
     {
-      label: "Calendar",
-      href: "/calendar",
+      label: "Dates",
+      href: "/dates",
     },
     {
       label: "Journal",

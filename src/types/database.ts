@@ -14,6 +14,238 @@ export type Database = {
   }
   public: {
     Tables: {
+      date_days: {
+        Row: {
+          created_at: string
+          date: string
+          date_id: string
+          day_number: number
+          id: string
+          note: string | null
+          planning_start_time: string
+          space_id: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          date_id: string
+          day_number: number
+          id?: string
+          note?: string | null
+          planning_start_time?: string
+          space_id: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          date_id?: string
+          day_number?: number
+          id?: string
+          note?: string | null
+          planning_start_time?: string
+          space_id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "date_days_date_space_fkey"
+            columns: ["date_id", "space_id"]
+            isOneToOne: false
+            referencedRelation: "dates"
+            referencedColumns: ["id", "space_id"]
+          },
+        ]
+      }
+      date_itinerary_items: {
+        Row: {
+          address: string | null
+          created_at: string
+          created_by: string | null
+          date_day_id: string
+          date_id: string
+          description: string | null
+          duration_minutes: number
+          fixed_start_time: string | null
+          google_maps_url: string | null
+          id: string
+          item_type: string
+          latitude: number | null
+          location_name: string | null
+          longitude: number | null
+          place_id: string | null
+          restaurant_id: string | null
+          sort_order: number
+          space_id: string
+          timing_type: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          created_by?: string | null
+          date_day_id: string
+          date_id: string
+          description?: string | null
+          duration_minutes?: number
+          fixed_start_time?: string | null
+          google_maps_url?: string | null
+          id?: string
+          item_type?: string
+          latitude?: number | null
+          location_name?: string | null
+          longitude?: number | null
+          place_id?: string | null
+          restaurant_id?: string | null
+          sort_order?: number
+          space_id: string
+          timing_type?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          created_by?: string | null
+          date_day_id?: string
+          date_id?: string
+          description?: string | null
+          duration_minutes?: number
+          fixed_start_time?: string | null
+          google_maps_url?: string | null
+          id?: string
+          item_type?: string
+          latitude?: number | null
+          location_name?: string | null
+          longitude?: number | null
+          place_id?: string | null
+          restaurant_id?: string | null
+          sort_order?: number
+          space_id?: string
+          timing_type?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "date_itinerary_items_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "date_itinerary_items_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "itinerary_day_date_space_fkey"
+            columns: ["date_day_id", "date_id", "space_id"]
+            isOneToOne: false
+            referencedRelation: "date_days"
+            referencedColumns: ["id", "date_id", "space_id"]
+          },
+        ]
+      }
+      date_participants: {
+        Row: {
+          created_at: string
+          date_id: string
+          id: string
+          responded_at: string | null
+          role: string
+          space_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date_id: string
+          id?: string
+          responded_at?: string | null
+          role: string
+          space_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date_id?: string
+          id?: string
+          responded_at?: string | null
+          role?: string
+          space_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "date_participants_date_space_fkey"
+            columns: ["date_id", "space_id"]
+            isOneToOne: false
+            referencedRelation: "dates"
+            referencedColumns: ["id", "space_id"]
+          },
+        ]
+      }
+      dates: {
+        Row: {
+          created_at: string
+          description: string | null
+          end_date: string
+          id: string
+          kind: string
+          organizer_id: string
+          space_id: string
+          start_date: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          end_date: string
+          id?: string
+          kind?: string
+          organizer_id: string
+          space_id: string
+          start_date: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          end_date?: string
+          id?: string
+          kind?: string
+          organizer_id?: string
+          space_id?: string
+          start_date?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dates_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           all_day: boolean
@@ -507,6 +739,26 @@ export type Database = {
       claim_initial_space: {
         Args: { space_name: string; space_slug: string }
         Returns: string
+      }
+      create_date_invitation: {
+        Args: {
+          p_description: string
+          p_end_date: string
+          p_invitee_id: string
+          p_kind: string
+          p_space_id: string
+          p_start_date: string
+          p_title: string
+        }
+        Returns: string
+      }
+      reorder_date_itinerary: {
+        Args: { p_date_day_id: string; p_item_ids: string[] }
+        Returns: undefined
+      }
+      respond_to_date_invitation: {
+        Args: { p_date_id: string; p_response: string }
+        Returns: undefined
       }
     }
     Enums: {

@@ -19,9 +19,9 @@ export const HOME_FEATURES = [
   },
   {
     index: "04",
-    title: "Calendar",
-    href: "/calendar",
-    description: "放著我們之後要一起做的事情。",
+    title: "Dates",
+    href: "/dates",
+    description: "出去玩！",
   },
   {
     index: "05",
