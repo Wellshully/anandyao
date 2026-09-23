@@ -4,8 +4,7 @@ import InvitationActions from "@/features/dates/components/InvitationActions";
 
 import { getDates } from "@/features/dates/lib/get-dates";
 
-import { getTaipeiDateKey } from "@/lib/time/taipei-time";
-
+import { getTaipeiToday } from "@/lib/time/get-taipei-today";
 const dateFormatter = new Intl.DateTimeFormat("zh-TW", {
   timeZone: "Asia/Taipei",
 
@@ -34,9 +33,7 @@ function formatDate(value: string) {
 
 export default async function HomeDateHero() {
   const dates = await getDates();
-
-  const today = getTaipeiDateKey(Date.now());
-
+  const today = getTaipeiToday();
   /*
    * 1. Incoming invitation
    */

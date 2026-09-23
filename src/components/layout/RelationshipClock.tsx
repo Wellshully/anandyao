@@ -287,17 +287,27 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
       {isOpen && (
         <div
           className="
-            absolute
-            right-0
-            top-[calc(100%+0.75rem)]
+            fixed
+            left-4
+            right-4
+            top-[7.5rem]
             z-50
-            w-[min(360px,calc(100vw-2rem))]
+
+            max-h-[calc(100dvh-9rem)]
+
             overflow-hidden
             rounded-[var(--radius-lg)]
             border
             border-[var(--border)]
             bg-[var(--surface)]
             shadow-[0_20px_60px_rgba(38,35,31,0.12)]
+
+            sm:absolute
+            sm:left-auto
+            sm:right-0
+            sm:top-[calc(100%+0.75rem)]
+            sm:max-h-[min(560px,calc(100dvh-6rem))]
+            sm:w-[360px]
           "
         >
           <div className="border-b border-[var(--border)] p-5">
@@ -318,6 +328,7 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                 type="button"
                 onClick={() => setShowAddForm((value) => !value)}
                 className="
+                  shrink-0
                   rounded-lg
                   border
                   border-[var(--border)]
@@ -364,6 +375,7 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                       className="
                         mt-1
                         w-full
+                        min-w-0
                         rounded-xl
                         border
                         border-[var(--border)]
@@ -386,6 +398,7 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                       className="
                         mt-1
                         w-full
+                        min-w-0
                         rounded-xl
                         border
                         border-[var(--border)]
@@ -428,7 +441,15 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
             )}
           </div>
 
-          <div className="max-h-[420px] overflow-y-auto">
+          <div
+            className="
+              max-h-[calc(100dvh-18rem)]
+              overflow-y-auto
+              overscroll-contain
+
+              sm:max-h-[420px]
+            "
+          >
             {items.length === 0 ? (
               <div className="p-8 text-center">
                 <p className="font-story text-lg">今天還沒有安排。</p>
