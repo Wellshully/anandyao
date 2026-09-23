@@ -3,15 +3,19 @@ import Link from "next/link";
 import Container from "@/components/ui/Container";
 
 import RelationshipClock from "@/components/layout/RelationshipClock";
+import ProfileMenu from "@/components/layout/ProfileMenu";
 
 import { siteConfig } from "@/config/site";
 
-import { signOut } from "@/app/auth/actions";
-
 import { getTodayOverview } from "@/features/today/lib/get-today-overview";
 
+import { getCurrentProfile } from "@/features/profile/lib/get-current-profile";
+
 export default async function SiteHeader() {
-  const todayItems = await getTodayOverview();
+  const [todayItems, profile] = await Promise.all([
+    getTodayOverview(),
+    getCurrentProfile(),
+  ]);
 
   return (
     <header
@@ -40,18 +44,22 @@ export default async function SiteHeader() {
             {siteConfig.name}
           </Link>
 
-          <div className="flex min-w-0 items-center gap-4">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
             <nav className="hidden items-center gap-6 md:flex">
               {siteConfig.navigation.slice(1).map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="
-                        text-sm
-                        text-[var(--muted)]
-                        transition
-                        hover:text-[var(--foreground)]
-                      "
+                  className={`
+                    text-sm
+                    transition
+
+                    ${
+                      item.href === "/dates"
+                        ? "font-medium text-[var(--foreground)]"
+                        : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                    }
+                  `}
                 >
                   {item.label}
                 </Link>
@@ -69,21 +77,7 @@ export default async function SiteHeader() {
 
             <RelationshipClock items={todayItems} />
 
-            <form action={signOut}>
-              <button
-                type="submit"
-                className="
-                  hidden
-                  text-xs
-                  text-[var(--muted)]
-                  transition
-                  hover:text-[var(--foreground)]
-                  md:block
-                "
-              >
-                Sign out
-              </button>
-            </form>
+            <ProfileMenu displayName={profile.displayName} />
           </div>
         </div>
 

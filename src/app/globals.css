@@ -70,3 +70,24 @@ select {
 .font-story {
   font-family: var(--font-serif), serif;
 }
+button {
+  -webkit-tap-highlight-color: rgba(168, 95, 104, 0.14);
+  touch-action: manipulation;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  button:not(:disabled) {
+    transition:
+      transform 80ms ease,
+      opacity 80ms ease;
+  }
+
+  button:not(:disabled):active {
+    transform: scale(0.97);
+    opacity: 0.72;
+  }
+
+  a {
+    -webkit-tap-highlight-color: rgba(168, 95, 104, 0.12);
+  }
+}

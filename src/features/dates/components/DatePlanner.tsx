@@ -42,7 +42,10 @@ export default async function DatePlanner({ details }: DatePlannerProps) {
     <div className="space-y-14">
       {details.days.map((plannerDay) => (
         <DateDaySection
-          key={plannerDay.day.id}
+          key={[
+            plannerDay.day.id,
+            ...plannerDay.items.map((item) => item.id),
+          ].join(":")}
           dateId={details.date.id}
           plannerDay={plannerDay}
           canPlan={canPlan}

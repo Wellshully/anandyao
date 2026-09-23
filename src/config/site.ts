@@ -20,20 +20,20 @@ export const siteConfig = {
       href: "/",
     },
     {
-      label: "Memories",
-      href: "/memories",
-    },
-    {
-      label: "Places",
-      href: "/places",
+      label: "Dates",
+      href: "/dates",
     },
     {
       label: "Eat",
       href: "/eat",
     },
     {
-      label: "Dates",
-      href: "/dates",
+      label: "Places",
+      href: "/places",
+    },
+    {
+      label: "Memories",
+      href: "/memories",
     },
     {
       label: "Journal",

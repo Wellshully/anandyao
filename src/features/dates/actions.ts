@@ -13,6 +13,7 @@ import { reorderItinerary } from "@/features/dates/lib/reorder-itinerary";
 import type {
   AddItineraryInput,
   CreateDateInput,
+  DateItineraryItem,
 } from "@/features/dates/types";
 
 export type CreateDateActionResult =
@@ -85,22 +86,24 @@ export async function respondToDateInvitationAction(
 export type AddItineraryActionResult =
   | {
       success: true;
+
+      item: DateItineraryItem;
     }
   | {
       success: false;
+
       error: string;
     };
-
 export async function addItineraryItemAction(
   input: AddItineraryInput,
 ): Promise<AddItineraryActionResult> {
   try {
-    await addItineraryItem(input);
-
+    const item = await addItineraryItem(input);
     revalidatePath(`/dates/${input.dateId}`);
 
     return {
       success: true,
+      item,
     };
   } catch (cause) {
     console.error("addItineraryItemAction error:", cause);

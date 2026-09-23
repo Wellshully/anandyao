@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { addItineraryItemAction } from "@/features/dates/actions";
 
 import type {
+  DateItineraryItem,
   ItineraryItemType,
   ItineraryTimingType,
   PlannerPlace,
@@ -23,8 +24,9 @@ type AddItineraryFormProps = {
   restaurants: Restaurant[];
 
   places: PlannerPlace[];
-};
 
+  onItemAdded?: (item: DateItineraryItem) => void;
+};
 type AddMode = "eat" | "place" | "custom";
 
 const ITEM_TYPES: {
@@ -78,6 +80,7 @@ export default function AddItineraryForm({
   dateDayId,
   restaurants,
   places,
+  onItemAdded,
 }: AddItineraryFormProps) {
   const router = useRouter();
 
@@ -296,6 +299,7 @@ export default function AddItineraryForm({
 
         return;
       }
+      onItemAdded?.(result.item);
 
       close();
 

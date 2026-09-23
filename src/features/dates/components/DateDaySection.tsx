@@ -1,7 +1,15 @@
+"use client";
+
+import { useState } from "react";
+
 import AddItineraryForm from "@/features/dates/components/AddItineraryForm";
 import SortableItineraryList from "@/features/dates/components/SortableItineraryList";
 
-import type { DatePlannerDay, PlannerPlace } from "@/features/dates/types";
+import type {
+  DateItineraryItem,
+  DatePlannerDay,
+  PlannerPlace,
+} from "@/features/dates/types";
 
 import type { Restaurant } from "@/features/eat/types";
 
@@ -38,7 +46,23 @@ export default function DateDaySection({
   restaurants,
   places,
 }: DateDaySectionProps) {
-  const { day, items } = plannerDay;
+  const { day } = plannerDay;
+
+  const [items, setItems] = useState<DateItineraryItem[]>(plannerDay.items);
+
+  function handleItemAdded(item: DateItineraryItem) {
+    setItems((current) => [...current, item]);
+  }
+
+  /*
+   * SortableItineraryList has its own
+   * ordering state.
+   *
+   * When a new item appears, changing
+   * this key remounts the sortable list
+   * with the new DB order.
+   */
+  const listKey = items.map((item) => item.id).join(":");
 
   return (
     <section>
@@ -79,6 +103,7 @@ export default function DateDaySection({
           </div>
         ) : (
           <SortableItineraryList
+            key={listKey}
             dateId={dateId}
             dateDayId={day.id}
             date={day.date}
@@ -95,6 +120,7 @@ export default function DateDaySection({
             dateDayId={day.id}
             restaurants={restaurants}
             places={places}
+            onItemAdded={handleItemAdded}
           />
         </div>
       )}
