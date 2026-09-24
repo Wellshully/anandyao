@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { useState } from "react";
 
-import { useRouter } from "next/navigation";
+import { useFormStatus } from "react-dom";
 
 import PhotoUploader from "@/features/memories/components/PhotoUploader";
 
@@ -23,7 +23,7 @@ type MemoryPhoto = {
   altText: string | null;
 };
 
-type ServerFormAction = (formData: FormData) => Promise<unknown>;
+type ServerFormAction = (formData: FormData) => void | Promise<void>;
 
 type MemoryDetailProps = {
   memory: Memory;
@@ -53,6 +53,29 @@ function formatDate(value: string) {
   return dateFormatter.format(new Date(`${value}T00:00:00+08:00`));
 }
 
+function SaveButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      form="memory-edit-form"
+      disabled={pending}
+      className="
+        rounded-xl
+        bg-[var(--foreground)]
+        px-5
+        py-3
+        text-sm
+        font-medium
+        text-white
+        disabled:opacity-50
+      "
+    >
+      {pending ? "Saving…" : "Save changes"}
+    </button>
+  );
+}
 export default function MemoryDetail({
   memory,
   photos,
@@ -61,64 +84,7 @@ export default function MemoryDetail({
   deleteMemoryPhotoAction,
   deleteMemoryAction,
 }: MemoryDetailProps) {
-  const router = useRouter();
-
   const [isEditing, setIsEditing] = useState(false);
-
-  const [isSaving, setIsSaving] = useState(false);
-
-  const [error, setError] = useState("");
-
-  async function handleUpdate(formData: FormData) {
-    setError("");
-    setIsSaving(true);
-
-    try {
-      await updateMemoryAction(formData);
-
-      setIsEditing(false);
-
-      router.refresh();
-    } catch (cause) {
-      console.error("Update memory:", cause);
-
-      setError("儲存失敗，請再試一次。");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleDeletePhoto(formData: FormData) {
-    const confirmed = window.confirm("確定要移除這張照片嗎？");
-
-    if (!confirmed) {
-      return;
-    }
-
-    setError("");
-
-    try {
-      await deleteMemoryPhotoAction(formData);
-
-      router.refresh();
-    } catch (cause) {
-      console.error("Delete memory photo:", cause);
-
-      setError("照片刪除失敗。");
-    }
-  }
-
-  async function handleDeleteMemory(formData: FormData) {
-    const confirmed = window.confirm(
-      "確定要永久刪除這個 Memory 嗎？這個動作無法復原。",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    await deleteMemoryAction(formData);
-  }
 
   return (
     <section className="mx-auto w-full max-w-3xl">
@@ -147,10 +113,7 @@ export default function MemoryDetail({
         ) : (
           <button
             type="button"
-            onClick={() => {
-              setError("");
-              setIsEditing(false);
-            }}
+            onClick={() => setIsEditing(false)}
             className="
               rounded-xl
               border
@@ -260,7 +223,20 @@ export default function MemoryDetail({
             Edit memory
           </p>
 
-          <form action={handleUpdate} className="mt-6 space-y-5">
+          {/*
+           * IMPORTANT:
+           *
+           * Call the original Server Action directly.
+           *
+           * Do not wrap this in try/catch because
+           * Next.js redirect() works by throwing a
+           * special internal redirect signal.
+           */}
+          <form
+            id="memory-edit-form"
+            action={updateMemoryAction}
+            className="mt-6 space-y-5"
+          >
             <input type="hidden" name="memoryId" value={memory.id} />
 
             <div>
@@ -378,25 +354,6 @@ export default function MemoryDetail({
                 "
               />
             </div>
-
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="
-                  rounded-xl
-                  bg-[var(--foreground)]
-                  px-5
-                  py-3
-                  text-sm
-                  font-medium
-                  text-white
-                  disabled:opacity-50
-                "
-              >
-                {isSaving ? "Saving…" : "Save changes"}
-              </button>
-            </div>
           </form>
 
           <section className="mt-10 border-t border-[var(--border)] pt-8">
@@ -437,8 +394,21 @@ export default function MemoryDetail({
                       className="object-cover"
                     />
 
+                    {/*
+                     * Same idea here:
+                     * use the original Server Action
+                     * directly.
+                     */}
                     <form
-                      action={handleDeletePhoto}
+                      action={deleteMemoryPhotoAction}
+                      onSubmit={(event) => {
+                        const confirmed =
+                          window.confirm("確定要移除這張照片嗎？");
+
+                        if (!confirmed) {
+                          event.preventDefault();
+                        }
+                      }}
                       className="
                           absolute
                           right-2
@@ -484,10 +454,24 @@ export default function MemoryDetail({
                 currentCount={photos.length}
               />
             </div>
+            <div className="mt-8">
+              <SaveButton />
+            </div>
           </section>
 
           <section className="mt-10 border-t border-[var(--border)] pt-6">
-            <form action={handleDeleteMemory}>
+            <form
+              action={deleteMemoryAction}
+              onSubmit={(event) => {
+                const confirmed = window.confirm(
+                  "確定要永久刪除這個 Memory 嗎？這個動作無法復原。",
+                );
+
+                if (!confirmed) {
+                  event.preventDefault();
+                }
+              }}
+            >
               <input type="hidden" name="memoryId" value={memory.id} />
 
               <button
@@ -503,10 +487,6 @@ export default function MemoryDetail({
               </button>
             </form>
           </section>
-
-          {error && (
-            <p className="mt-5 text-sm text-[var(--danger)]">{error}</p>
-          )}
         </div>
       )}
     </section>

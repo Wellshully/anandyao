@@ -148,9 +148,7 @@ export default function PhotoUploader({
         className="block w-full text-sm"
       />
 
-      <p className="mt-2 text-xs text-neutral-500">
-        JPEG, PNG or WebP. Images are resized before upload.
-      </p>
+      <p className="mt-2 text-xs text-neutral-500">Upload.</p>
 
       {uploading && <p className="mt-3 text-sm">Processing photos...</p>}
 
