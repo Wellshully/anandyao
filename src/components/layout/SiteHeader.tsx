@@ -10,13 +10,16 @@ import { siteConfig } from "@/config/site";
 import { getTodayOverview } from "@/features/today/lib/get-today-overview";
 
 import { getCurrentProfile } from "@/features/profile/lib/get-current-profile";
-
+import { getProjectUsage } from "@/features/profile/lib/get-project-usage";
+import { getCurrentSpaceRole } from "@/features/profile/lib/get-current-space-role";
 export default async function SiteHeader() {
-  const [todayItems, profile] = await Promise.all([
+  const [todayItems, profile, role] = await Promise.all([
     getTodayOverview(),
     getCurrentProfile(),
+    getCurrentSpaceRole(),
   ]);
 
+  const usage = role === "owner" ? await getProjectUsage() : null;
   return (
     <header
       className="
@@ -76,8 +79,11 @@ export default async function SiteHeader() {
             />
 
             <RelationshipClock items={todayItems} />
-
-            <ProfileMenu displayName={profile.displayName} />
+            <ProfileMenu
+              displayName={profile.displayName}
+              isOwner={role === "owner"}
+              usage={usage}
+            />
           </div>
         </div>
 

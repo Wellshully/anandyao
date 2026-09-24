@@ -20,6 +20,8 @@ type ItineraryCardProps = {
   isSoon?: boolean;
 
   minutesUntilStart?: number | null;
+
+  canEdit?: boolean;
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -60,6 +62,7 @@ export default function ItineraryCard({
   timeState,
   isSoon = false,
   minutesUntilStart,
+  canEdit = true,
 }: ItineraryCardProps) {
   const borderClass = hasConflict
     ? "border-[var(--danger)]"
@@ -94,36 +97,29 @@ export default function ItineraryCard({
       `}
     >
       <div className="flex gap-4">
-        {/* Drag handle */}
-
-        <div
-          className="
-            flex
-            w-5
-            shrink-0
-            cursor-grab
-            items-start
-            justify-center
-            pt-1
-            text-[var(--muted)]
-            active:cursor-grabbing
-          "
-          aria-hidden="true"
-        >
-          ⋮⋮
-        </div>
-
-        {/* Time */}
+        {canEdit ? (
+          <div
+            className="
+              flex
+              w-5
+              shrink-0
+              cursor-grab
+              items-start
+              justify-center
+              pt-1
+              text-[var(--muted)]
+              active:cursor-grabbing
+            "
+            aria-hidden="true"
+          >
+            ⋮⋮
+          </div>
+        ) : (
+          <div className="w-1 shrink-0" />
+        )}
 
         <div className="w-20 shrink-0">
-          <p
-            className="
-              font-medium
-              tabular-nums
-            "
-          >
-            {scheduledTime ?? "—"}
-          </p>
+          <p className="font-medium tabular-nums">{scheduledTime ?? "—"}</p>
 
           {timeState === "current" && (
             <p className="mt-1 text-xs font-medium text-[var(--accent)]">
@@ -150,8 +146,6 @@ export default function ItineraryCard({
           </p>
         </div>
 
-        {/* Content */}
-
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -164,7 +158,7 @@ export default function ItineraryCard({
               </h4>
             </div>
 
-            <ItineraryActions dateId={dateId} itemId={item.id} />
+            {canEdit && <ItineraryActions dateId={dateId} itemId={item.id} />}
           </div>
 
           <p className="mt-2 text-xs text-[var(--muted)]">

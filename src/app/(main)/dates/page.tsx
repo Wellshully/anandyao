@@ -1,41 +1,141 @@
 import Link from "next/link";
 
-import DateCard from "@/features/dates/components/DateCard";
+import DateOverviewCard from "@/features/dates/components/DateOverviewCard";
 
 import { getDates } from "@/features/dates/lib/get-dates";
 
-export default async function DatesPage() {
-  const dates = await getDates();
+import { getDateRecapStatuses } from "@/features/dates/recap/lib/get-date-recap-statuses";
 
-  const invitations = dates.filter(
+import { getDateRecapWindowState } from "@/features/dates/lib/date-recap-window";
+
+import { getTaipeiToday } from "@/lib/time/get-taipei-today";
+
+import type { DateListItem } from "@/features/dates/types";
+
+import type { DateRecapStatus } from "@/features/dates/recap/types";
+
+export const dynamic = "force-dynamic";
+
+function getRecapState(
+  item: DateListItem,
+  today: string,
+  recapStatus?: DateRecapStatus,
+) {
+  if (item.date.status !== "accepted") {
+    return null;
+  }
+
+  return getDateRecapWindowState({
+    endDate: item.date.end_date,
+
+    today,
+
+    recapStatus,
+  });
+}
+
+function isArchive(
+  item: DateListItem,
+  today: string,
+  recapStatus?: DateRecapStatus,
+) {
+  if (
+    item.date.status === "cancelled" ||
+    item.date.status === "completed" ||
+    item.date.status === "declined"
+  ) {
+    return true;
+  }
+
+  if (item.date.status === "accepted") {
+    const state = getRecapState(item, today, recapStatus);
+
+    return state === "expired" || state === "completed";
+  }
+
+  return false;
+}
+
+function getArchiveLabel(
+  item: DateListItem,
+  today: string,
+  recapStatus?: DateRecapStatus,
+) {
+  if (item.date.status === "cancelled") {
+    return "已取消";
+  }
+
+  if (item.date.status === "completed" || recapStatus === "completed") {
+    return "已完成";
+  }
+
+  if (item.date.status === "declined") {
+    return "已婉拒";
+  }
+
+  if (item.date.end_date < today) {
+    return "日期已過";
+  }
+
+  return "Archive";
+}
+
+export default async function DatesPage() {
+  const today = getTaipeiToday();
+
+  const [dates, recapStatuses] = await Promise.all([
+    getDates(),
+    getDateRecapStatuses(),
+  ]);
+
+  const toRemember = dates
+    .filter(
+      (item) =>
+        getRecapState(item, today, recapStatuses[item.date.id]) === "available",
+    )
+    .sort((a, b) => b.date.end_date.localeCompare(a.date.end_date));
+
+  const archive = dates
+    .filter((item) => isArchive(item, today, recapStatuses[item.date.id]))
+    .sort((a, b) => b.date.start_date.localeCompare(a.date.start_date));
+
+  const activeDates = dates.filter((item) => {
+    const recapState = getRecapState(item, today, recapStatuses[item.date.id]);
+
+    return (
+      !isArchive(item, today, recapStatuses[item.date.id]) &&
+      recapState !== "available"
+    );
+  });
+
+  const invitations = activeDates.filter(
     (item) =>
+      item.date.status === "pending" &&
       item.currentUserParticipant?.role === "invitee" &&
-      item.currentUserParticipant.status === "pending",
+      item.currentUserParticipant?.status === "pending",
   );
 
-  const activeDates = dates.filter((item) => item.date.status === "accepted");
+  const comingUp = activeDates
+    .filter((item) => item.date.status === "accepted")
+    .sort((a, b) => a.date.start_date.localeCompare(b.date.start_date));
 
-  const pendingSent = dates.filter(
+  const waiting = activeDates.filter(
     (item) =>
-      item.currentUserParticipant?.role === "organizer" &&
-      item.date.status === "pending",
+      item.date.status === "pending" &&
+      item.currentUserParticipant?.role === "organizer",
   );
 
   return (
-    <div className="py-4 sm:py-10">
-      <div className="flex items-end justify-between gap-6">
+    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      <div className="flex items-end justify-between gap-5">
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-[var(--accent)]">
-            Us, somewhere
+            Dates
           </p>
 
           <h1 className="font-story mt-3 text-4xl font-semibold sm:text-5xl">
-            Dates
+            我們的 Dates
           </h1>
-
-          <p className="mt-4 max-w-xl leading-7 text-[var(--muted)]">
-            從下一頓飯， 到下一次旅行。
-          </p>
         </div>
 
         <Link
@@ -45,13 +145,13 @@ export default async function DatesPage() {
             rounded-xl
             bg-[var(--foreground)]
             px-4
-            py-2.5
+            py-3
             text-sm
             font-medium
             text-white
           "
         >
-          New date
+          + New Date
         </Link>
       </div>
 
@@ -61,53 +161,111 @@ export default async function DatesPage() {
             Invitations
           </p>
 
-          <h2 className="font-story mt-2 text-2xl font-semibold">等妳回覆</h2>
+          <h2 className="font-story mt-2 text-2xl font-semibold">等你回覆</h2>
 
           <div className="mt-5 grid gap-4">
             {invitations.map((item) => (
-              <DateCard key={item.date.id} item={item} />
+              <DateOverviewCard
+                key={item.date.id}
+                item={item}
+                mode="invitation"
+              />
             ))}
           </div>
         </section>
       )}
 
       <section className="mt-12">
-        <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+        <p className="text-xs uppercase tracking-[0.2em] text-[var(--accent)]">
           Coming up
         </p>
 
-        <h2 className="font-story mt-2 text-2xl font-semibold">
-          我們接下來的約會
-        </h2>
+        <h2 className="font-story mt-2 text-2xl font-semibold">接下來</h2>
 
-        {activeDates.length === 0 ? (
-          <div className="mt-5 rounded-[var(--radius-md)] border border-dashed border-[var(--border)] p-8">
-            <p className="text-sm text-[var(--muted)]">還沒有已確認的約會。</p>
+        {comingUp.length > 0 ? (
+          <div className="mt-5 grid gap-4">
+            {comingUp.map((item) => (
+              <DateOverviewCard
+                key={item.date.id}
+                item={item}
+                mode="upcoming"
+              />
+            ))}
           </div>
         ) : (
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            {activeDates.map((item) => (
-              <DateCard key={item.date.id} item={item} />
-            ))}
+          <div className="mt-5 rounded-[var(--radius-lg)] border border-dashed border-[var(--border)] p-7">
+            <p className="text-sm text-[var(--muted)]">目前沒有排好的 Date。</p>
           </div>
         )}
       </section>
 
-      {pendingSent.length > 0 && (
+      {waiting.length > 0 && (
         <section className="mt-12">
           <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
             Waiting
           </p>
 
-          <h2 className="font-story mt-2 text-2xl font-semibold">等待回覆</h2>
+          <h2 className="font-story mt-2 text-2xl font-semibold">等對方回覆</h2>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            {pendingSent.map((item) => (
-              <DateCard key={item.date.id} item={item} />
+          <div className="mt-5 grid gap-4">
+            {waiting.map((item) => (
+              <DateOverviewCard key={item.date.id} item={item} mode="waiting" />
             ))}
           </div>
         </section>
       )}
-    </div>
+
+      {toRemember.length > 0 && (
+        <section className="mt-16 border-t border-[var(--border)] pt-10">
+          <p className="text-xs uppercase tracking-[0.2em] text-[var(--accent)]">
+            To remember
+          </p>
+
+          <h2 className="font-story mt-2 text-2xl font-semibold">
+            留下這次回憶
+          </h2>
+
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            Date 結束後七天內，可以留幾句話和照片。
+          </p>
+
+          <div className="mt-5 grid gap-4">
+            {toRemember.map((item) => (
+              <DateOverviewCard key={item.date.id} item={item} mode="recap" />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {archive.length > 0 && (
+        <section className="mt-16 border-t border-[var(--border)] pt-10">
+          <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+            Archive
+          </p>
+
+          <h2 className="font-story mt-2 text-2xl font-semibold">
+            之前的 Dates
+          </h2>
+
+          <div className="mt-5 grid gap-4">
+            {archive.map((item) => (
+              <DateOverviewCard
+                key={item.date.id}
+                item={item}
+                mode="archive"
+                archiveLabel={getArchiveLabel(
+                  item,
+                  today,
+                  recapStatuses[item.date.id],
+                )}
+                showPermanentDelete={
+                  item.currentUserParticipant?.role === "organizer"
+                }
+              />
+            ))}
+          </div>
+        </section>
+      )}
+    </main>
   );
 }

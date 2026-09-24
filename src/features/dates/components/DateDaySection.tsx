@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import AddItineraryForm from "@/features/dates/components/AddItineraryForm";
 import SortableItineraryList from "@/features/dates/components/SortableItineraryList";
+import ReadonlyItineraryList from "@/features/dates/components/ReadonlyItineraryList";
 
 import type {
   DateItineraryItem,
@@ -54,14 +55,6 @@ export default function DateDaySection({
     setItems((current) => [...current, item]);
   }
 
-  /*
-   * SortableItineraryList has its own
-   * ordering state.
-   *
-   * When a new item appears, changing
-   * this key remounts the sortable list
-   * with the new DB order.
-   */
   const listKey = items.map((item) => item.id).join(":");
 
   return (
@@ -101,11 +94,18 @@ export default function DateDaySection({
           >
             這一天還沒有行程。
           </div>
-        ) : (
+        ) : canPlan ? (
           <SortableItineraryList
             key={listKey}
             dateId={dateId}
             dateDayId={day.id}
+            date={day.date}
+            planningStartTime={day.planning_start_time}
+            items={items}
+          />
+        ) : (
+          <ReadonlyItineraryList
+            dateId={dateId}
             date={day.date}
             planningStartTime={day.planning_start_time}
             items={items}

@@ -196,6 +196,113 @@ export type Database = {
           },
         ]
       }
+      date_recap_media: {
+        Row: {
+          created_at: string
+          media_id: string
+          recap_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          media_id: string
+          recap_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          media_id?: string
+          recap_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "date_recap_media_media_id_fkey"
+            columns: ["media_id"]
+            isOneToOne: false
+            referencedRelation: "media"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "date_recap_media_recap_id_fkey"
+            columns: ["recap_id"]
+            isOneToOne: false
+            referencedRelation: "date_recaps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      date_recaps: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          date_id: string
+          favorite_moment: string | null
+          future_note: string | null
+          id: string
+          memory_id: string | null
+          space_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          date_id: string
+          favorite_moment?: string | null
+          future_note?: string | null
+          id?: string
+          memory_id?: string | null
+          space_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          date_id?: string
+          favorite_moment?: string | null
+          future_note?: string | null
+          id?: string
+          memory_id?: string | null
+          space_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "date_recaps_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "date_recaps_date_id_fkey"
+            columns: ["date_id"]
+            isOneToOne: true
+            referencedRelation: "dates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "date_recaps_memory_id_fkey"
+            columns: ["memory_id"]
+            isOneToOne: false
+            referencedRelation: "memories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "date_recaps_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dates: {
         Row: {
           created_at: string
@@ -786,10 +893,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_date: { Args: { p_date_id: string }; Returns: undefined }
       claim_initial_space: {
         Args: { space_name: string; space_slug: string }
         Returns: string
       }
+      complete_date_recap: { Args: { p_date_id: string }; Returns: string }
       create_date_invitation: {
         Args: {
           p_description: string
@@ -801,6 +910,14 @@ export type Database = {
           p_title: string
         }
         Returns: string
+      }
+      delete_archived_date: { Args: { p_date_id: string }; Returns: undefined }
+      get_project_usage: {
+        Args: never
+        Returns: {
+          database_bytes: number
+          storage_bytes: number
+        }[]
       }
       reorder_date_itinerary: {
         Args: { p_date_day_id: string; p_item_ids: string[] }
