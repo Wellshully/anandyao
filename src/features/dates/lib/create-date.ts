@@ -6,6 +6,10 @@ import { requireUser } from "@/lib/auth/require-user";
 
 import { requireSpace } from "@/lib/space/require-space";
 
+import { getCurrentProfile } from "@/features/profile/lib/get-current-profile";
+
+import { sendDateInviteNotification } from "@/features/dates/lib/send-date-invite-notification";
+
 import type { CreateDateInput } from "@/features/dates/types";
 
 export async function createDate(input: CreateDateInput) {
@@ -60,6 +64,36 @@ export async function createDate(input: CreateDateInput) {
 
   if (error) {
     throw new Error(`Failed to create date: ${error.message}`);
+  }
+
+  if (!dateId) {
+    throw new Error("Date was created without a valid ID.");
+  }
+
+  /*
+   * Date creation is already complete at this point.
+   *
+   * Notification is best-effort:
+   * profile lookup / Push failure must never roll back
+   * or make the successfully-created Date look failed.
+   */
+  try {
+    const profile = await getCurrentProfile();
+
+    await sendDateInviteNotification({
+      inviteeUserId: invitee.user_id,
+
+      organizerName: profile.displayName,
+
+      dateId,
+
+      title,
+    });
+  } catch (cause) {
+    console.warn(
+      "Date invitation notification failed:",
+      cause instanceof Error ? cause.message : String(cause),
+    );
   }
 
   return dateId;
