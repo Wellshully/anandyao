@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { signOut } from "@/app/auth/actions";
 
 import type { ProjectUsage } from "@/features/profile/usage-types";
-
+import NotificationSettings from "@/features/notifications/components/NotificationSettings";
 type ProfileMenuProps = {
   displayName: string;
   isOwner: boolean;
@@ -158,11 +158,18 @@ export default function ProfileMenu({
           <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
             Profile
           </p>
-
           <div className="mt-3">
             <p className="font-story text-xl font-semibold">{displayName}</p>
 
             <p className="mt-1 text-xs text-[var(--muted)]">An & Yao</p>
+          </div>
+
+          <div className="mt-5 border-t border-[var(--border)] pt-4">
+            <p className="mb-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+              Notifications
+            </p>
+
+            <NotificationSettings />
           </div>
 
           {isOwner && usage && (
