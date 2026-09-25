@@ -433,9 +433,8 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                     outline-none
                   "
                 />
-
-                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
-                  <label className="min-w-0">
+                <div className="space-y-3">
+                  <label className="block">
                     <span className="text-[10px] text-[var(--muted)]">
                       時間（可不填）
                     </span>
@@ -446,21 +445,20 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                       className="
                         mt-1
                         block
-                        w-full
-                        min-w-0
+                        w-36
                         max-w-full
                         rounded-xl
                         border
                         border-[var(--border)]
                         bg-[var(--background)]
-                        px-2
+                        px-3
                         py-2
                         text-sm
                       "
                     />
                   </label>
 
-                  <label className="min-w-0">
+                  <label className="block">
                     <span className="text-[10px] text-[var(--muted)]">
                       預計多久
                     </span>
@@ -471,14 +469,13 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                       className="
                         mt-1
                         block
-                        w-full
-                        min-w-0
+                        w-36
                         max-w-full
                         rounded-xl
                         border
                         border-[var(--border)]
                         bg-[var(--background)]
-                        px-2
+                        px-3
                         py-2
                         text-sm
                       "
@@ -491,7 +488,6 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                     </select>
                   </label>
                 </div>
-
                 <button
                   type="submit"
                   disabled={isPending}
