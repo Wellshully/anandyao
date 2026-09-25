@@ -65,10 +65,6 @@ function getItemState(item: TodayItem, now: number) {
 }
 
 function getRelativeLabel(item: TodayItem, now: number) {
-  /*
-   * Assignment has deadline semantics,
-   * not event start/end semantics.
-   */
   if (item.kind === "study_assignment" && item.startAt !== null) {
     const diff = item.startAt - now;
 
@@ -438,8 +434,8 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                   "
                 />
 
-                <div className="grid grid-cols-2 gap-2">
-                  <label>
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+                  <label className="min-w-0">
                     <span className="text-[10px] text-[var(--muted)]">
                       時間（可不填）
                     </span>
@@ -449,20 +445,22 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                       name="startTime"
                       className="
                         mt-1
+                        block
                         w-full
                         min-w-0
+                        max-w-full
                         rounded-xl
                         border
                         border-[var(--border)]
                         bg-[var(--background)]
-                        px-3
+                        px-2
                         py-2
                         text-sm
                       "
                     />
                   </label>
 
-                  <label>
+                  <label className="min-w-0">
                     <span className="text-[10px] text-[var(--muted)]">
                       預計多久
                     </span>
@@ -472,13 +470,15 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                       defaultValue="30"
                       className="
                         mt-1
+                        block
                         w-full
                         min-w-0
+                        max-w-full
                         rounded-xl
                         border
                         border-[var(--border)]
                         bg-[var(--background)]
-                        px-3
+                        px-2
                         py-2
                         text-sm
                       "
