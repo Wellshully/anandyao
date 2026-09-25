@@ -141,7 +141,7 @@ export default function PhotoUploader({
       <input
         ref={inputRef}
         type="file"
-        accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
         multiple
         disabled={uploading}
         onChange={handleFiles}

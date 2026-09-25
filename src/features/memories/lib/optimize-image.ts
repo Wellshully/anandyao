@@ -2,15 +2,15 @@ const MAX_SIZE = 1920;
 
 const TARGET_SIZE_BYTES = 500 * 1024;
 
-const INITIAL_WEBP_QUALITY = 0.8;
+const INITIAL_QUALITY = 0.78;
 
-const MIN_WEBP_QUALITY = 0.56;
+const MIN_QUALITY = 0.5;
 
-const QUALITY_STEP = 0.06;
+const QUALITY_STEP = 0.07;
 
 const RESIZE_FACTOR = 0.85;
 
-const MIN_LONG_EDGE = 1280;
+const MIN_LONG_EDGE = 960;
 
 type OptimizedImage = {
   file: File;
@@ -18,15 +18,18 @@ type OptimizedImage = {
   height: number;
 };
 
-type CompressionResult = {
+type EncodedImage = {
   blob: Blob;
+  extension: "webp" | "jpg";
+};
+
+type CompressionResult = EncodedImage & {
   width: number;
   height: number;
 };
 
 function isHeicLike(file: File) {
   const type = file.type.toLowerCase();
-
   const name = file.name.toLowerCase();
 
   return (
@@ -40,19 +43,15 @@ function isHeicLike(file: File) {
 async function convertHeicToJpeg(source: File): Promise<File> {
   const { heicTo } = await import("heic-to");
 
-  /*
-   * This JPEG is only an intermediate
-   * representation so the browser can
-   * draw the HEIC photo onto a canvas.
-   *
-   * It is never uploaded.
-   */
   const converted = await heicTo({
     blob: source,
-
     type: "image/jpeg",
 
-    quality: 0.9,
+    /*
+     * 這張 JPEG 只是給瀏覽器 decode 用，
+     * 不會直接上傳。
+     */
+    quality: 0.88,
   });
 
   if (!(converted instanceof Blob)) {
@@ -69,18 +68,15 @@ async function convertHeicToJpeg(source: File): Promise<File> {
 function loadImage(source: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(source);
-
     const image = new Image();
 
     image.onload = () => {
       URL.revokeObjectURL(url);
-
       resolve(image);
     };
 
     image.onerror = () => {
       URL.revokeObjectURL(url);
-
       reject(new Error("無法讀取圖片。"));
     };
 
@@ -116,20 +112,25 @@ function createCanvas(image: HTMLImageElement, width: number, height: number) {
     throw new Error("無法處理圖片。");
   }
 
-  /*
-   * Give the browser high-quality scaling
-   * when shrinking large phone photos.
-   */
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
+
+  /*
+   * JPEG 沒有透明背景。
+   * 對照片來說白色背景最安全，
+   * 也避免透明 PNG 轉 JPEG 後變黑。
+   */
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
 
   context.drawImage(image, 0, 0, width, height);
 
   return canvas;
 }
 
-function canvasToWebp(
+function canvasToBlob(
   canvas: HTMLCanvasElement,
+  type: string,
   quality: number,
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -137,18 +138,59 @@ function canvasToWebp(
       (blob) => {
         if (!blob) {
           reject(new Error("圖片壓縮失敗。"));
-
           return;
         }
 
         resolve(blob);
       },
-
-      "image/webp",
-
+      type,
       quality,
     );
   });
+}
+
+async function encodeImage(
+  canvas: HTMLCanvasElement,
+  quality: number,
+): Promise<EncodedImage> {
+  /*
+   * 先嘗試 WebP。
+   *
+   * 重要：
+   * 不能因為 request image/webp 就假設回來一定
+   * 是 WebP。瀏覽器不支援時可能 fallback 成 PNG。
+   */
+  const webpBlob = await canvasToBlob(canvas, "image/webp", quality);
+
+  /*
+   * JPEG encoder 是最穩定的 fallback。
+   */
+  const jpegBlob = await canvasToBlob(canvas, "image/jpeg", quality);
+
+  const candidates: EncodedImage[] = [
+    {
+      blob: jpegBlob,
+      extension: "jpg",
+    },
+  ];
+
+  /*
+   * 只有真正回傳 image/webp 才接受。
+   */
+  if (webpBlob.type === "image/webp") {
+    candidates.push({
+      blob: webpBlob,
+      extension: "webp",
+    });
+  }
+
+  /*
+   * WebP 不一定在每張照片上都比 JPEG 小，
+   * 所以直接選實際 bytes 較小的結果。
+   */
+  candidates.sort((a, b) => a.blob.size - b.blob.size);
+
+  return candidates[0];
 }
 
 async function compressImage(
@@ -159,62 +201,43 @@ async function compressImage(
   let width = initialWidth;
   let height = initialHeight;
 
-  /*
-   * Keep the most recent result so we can
-   * still return a usable image if an
-   * unusually detailed photo cannot reach
-   * the exact target size.
-   */
-  let lastBlob: Blob | null = null;
+  let smallestResult: CompressionResult | null = null;
 
   while (true) {
     const canvas = createCanvas(image, width, height);
 
-    /*
-     * First try to preserve resolution and
-     * progressively lower WebP quality.
-     */
     for (
-      let quality = INITIAL_WEBP_QUALITY;
-      quality >= MIN_WEBP_QUALITY;
+      let quality = INITIAL_QUALITY;
+      quality >= MIN_QUALITY;
       quality -= QUALITY_STEP
     ) {
-      const blob = await canvasToWebp(canvas, quality);
+      const encoded = await encodeImage(canvas, quality);
 
-      lastBlob = blob;
+      const current: CompressionResult = {
+        ...encoded,
+        width,
+        height,
+      };
 
-      if (blob.size <= TARGET_SIZE_BYTES) {
-        return {
-          blob,
-          width,
-          height,
-        };
+      if (!smallestResult || current.blob.size < smallestResult.blob.size) {
+        smallestResult = current;
+      }
+
+      if (encoded.blob.size <= TARGET_SIZE_BYTES) {
+        return current;
       }
     }
 
     const longEdge = Math.max(width, height);
 
-    /*
-     * Do not keep shrinking forever.
-     * 1280px is still enough for normal
-     * Memories / Date recap display.
-     */
     if (longEdge <= MIN_LONG_EDGE) {
-      if (!lastBlob) {
+      if (!smallestResult) {
         throw new Error("圖片壓縮失敗。");
       }
 
-      return {
-        blob: lastBlob,
-        width,
-        height,
-      };
+      return smallestResult;
     }
 
-    /*
-     * Quality alone was not enough.
-     * Reduce resolution and try again.
-     */
     const nextLongEdge = Math.max(
       MIN_LONG_EDGE,
       Math.round(longEdge * RESIZE_FACTOR),
@@ -226,23 +249,16 @@ async function compressImage(
 
     const nextHeight = Math.max(1, Math.round(height * ratio));
 
-    /*
-     * Safety against an accidental infinite
-     * loop caused by rounding.
-     */
     if (nextWidth === width && nextHeight === height) {
-      if (!lastBlob) {
+      if (!smallestResult) {
         throw new Error("圖片壓縮失敗。");
       }
 
-      return {
-        blob: lastBlob,
-        width,
-        height,
-      };
+      return smallestResult;
     }
 
     width = nextWidth;
+
     height = nextHeight;
   }
 }
@@ -250,11 +266,6 @@ async function compressImage(
 export async function optimizeImage(source: File): Promise<OptimizedImage> {
   let workingFile = source;
 
-  /*
-   * Safari / Canvas cannot reliably consume
-   * every HEIC file directly, so decode it
-   * first.
-   */
   if (isHeicLike(source)) {
     workingFile = await convertHeicToJpeg(source);
   }
@@ -271,13 +282,50 @@ export async function optimizeImage(source: File): Promise<OptimizedImage> {
 
   const baseName = source.name.replace(/\.[^.]+$/, "");
 
-  const file = new File([optimized.blob], `${baseName}.webp`, {
-    type: "image/webp",
+  const mimeType = optimized.extension === "webp" ? "image/webp" : "image/jpeg";
+
+  const file = new File(
+    [optimized.blob],
+    `${baseName}.${optimized.extension}`,
+    {
+      type: mimeType,
+    },
+  );
+
+  /*
+   * 測試階段先保留。
+   * 確認手機行為正常後可以刪掉。
+   */
+  console.log("[optimizeImage]", {
+    source: {
+      name: source.name,
+
+      type: source.type,
+
+      sizeKB: Math.round(source.size / 1024),
+
+      width: image.naturalWidth,
+
+      height: image.naturalHeight,
+    },
+
+    optimized: {
+      name: file.name,
+
+      type: file.type,
+
+      sizeKB: Math.round(file.size / 1024),
+
+      width: optimized.width,
+
+      height: optimized.height,
+    },
   });
 
   return {
     file,
     width: optimized.width,
+
     height: optimized.height,
   };
 }
