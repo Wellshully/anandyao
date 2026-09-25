@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 
 import DatePlanner from "@/features/dates/components/DatePlanner";
 
+import InvitationActions from "@/features/dates/components/InvitationActions";
+
 import { getDate } from "@/features/dates/lib/get-date";
 
 type DateDetailPageProps = {
@@ -16,7 +18,9 @@ const formatter = new Intl.DateTimeFormat("zh-TW", {
   timeZone: "Asia/Taipei",
 
   year: "numeric",
+
   month: "long",
+
   day: "numeric",
 });
 
@@ -26,11 +30,31 @@ function formatDate(value: string) {
 
 const KIND_LABELS: Record<string, string> = {
   meal: "一起吃飯",
+
   date: "約會",
+
   half_day: "半日約會",
+
   day: "一日約會",
+
   trip: "小旅行",
 };
+
+function getStatusLabel(status: string) {
+  if (status === "pending") {
+    return "等待回覆";
+  }
+
+  if (status === "accepted") {
+    return "已接受";
+  }
+
+  if (status === "declined") {
+    return "已婉拒";
+  }
+
+  return status;
+}
 
 export default async function DateDetailPage({ params }: DateDetailPageProps) {
   const { id } = await params;
@@ -41,7 +65,18 @@ export default async function DateDetailPage({ params }: DateDetailPageProps) {
     notFound();
   }
 
-  const { date, participants } = details;
+  const { date, participants, currentUserParticipant } = details;
+
+  const isPendingInvitee =
+    date.status === "pending" &&
+    currentUserParticipant?.role === "invitee" &&
+    currentUserParticipant.status === "pending";
+
+  const isPendingOrganizer =
+    date.status === "pending" && currentUserParticipant?.role === "organizer";
+
+  const isDeclined =
+    currentUserParticipant?.status === "declined" || date.status === "declined";
 
   return (
     <div className="mx-auto max-w-3xl py-4 sm:py-10">
@@ -65,7 +100,7 @@ export default async function DateDetailPage({ params }: DateDetailPageProps) {
               text-[var(--muted)]
             "
           >
-            {date.status}
+            {getStatusLabel(date.status)}
           </span>
         </div>
 
@@ -92,6 +127,72 @@ export default async function DateDetailPage({ params }: DateDetailPageProps) {
           </p>
         )}
       </header>
+
+      {isPendingInvitee && (
+        <section
+          className="
+            mt-8
+            rounded-[var(--radius-lg)]
+            border
+            border-[var(--border)]
+            bg-[var(--surface)]
+            p-5
+            sm:p-6
+          "
+        >
+          <p className="text-xs uppercase tracking-[0.2em] text-[var(--accent)]">
+            Invitation
+          </p>
+
+          <h2 className="font-story mt-2 text-2xl font-semibold">
+            要一起去嗎？
+          </h2>
+
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+            對方正在等你的回覆。
+          </p>
+
+          <div className="mt-5">
+            <InvitationActions dateId={date.id} />
+          </div>
+        </section>
+      )}
+
+      {isPendingOrganizer && (
+        <section
+          className="
+            mt-8
+            rounded-[var(--radius-lg)]
+            border
+            border-[var(--border)]
+            bg-[var(--surface-soft)]
+            p-5
+            sm:p-6
+          "
+        >
+          <p className="text-sm font-medium">邀請已送出</p>
+
+          <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+            正在等待對方回覆。
+          </p>
+        </section>
+      )}
+
+      {isDeclined && (
+        <section
+          className="
+            mt-8
+            rounded-[var(--radius-lg)]
+            border
+            border-[var(--border)]
+            bg-[var(--surface-soft)]
+            p-5
+            sm:p-6
+          "
+        >
+          <p className="text-sm font-medium">這個邀請已經婉拒。</p>
+        </section>
+      )}
 
       <div className="my-10 border-t border-[var(--border)]" />
 
