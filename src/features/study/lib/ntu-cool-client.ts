@@ -1,8 +1,11 @@
 import "server-only";
+
 import {
   getNtuCoolSessionFetch,
+  getNtuCoolSessionFetchForUser,
   invalidateNtuCoolSession,
 } from "@/features/study/lib/ntu-cool-session";
+
 const NTU_COOL_API_BASE = "https://cool.ntu.edu.tw/api/v1";
 
 export type NtuCoolProfile = {
@@ -55,6 +58,7 @@ export type NtuCoolAssignment = {
 
   published?: boolean;
 };
+
 export type NtuCoolAnnouncement = {
   id: number;
 
@@ -72,8 +76,10 @@ export type NtuCoolAnnouncement = {
 
   context_code: string;
 };
+
 export class NtuCoolApiError extends Error {
   status: number;
+
   path: string;
 
   constructor(status: number, path: string) {
@@ -90,9 +96,12 @@ export class NtuCoolApiError extends Error {
 export function isNtuCoolAuthError(error: unknown) {
   return error instanceof NtuCoolApiError && error.status === 401;
 }
-async function ntuCoolFetch<T>(path: string): Promise<T> {
+
+async function ntuCoolFetch<T>(path: string, userId?: string): Promise<T> {
   async function request() {
-    const sessionFetch = await getNtuCoolSessionFetch();
+    const sessionFetch = userId
+      ? await getNtuCoolSessionFetchForUser(userId)
+      : await getNtuCoolSessionFetch();
 
     return sessionFetch(`${NTU_COOL_API_BASE}${path}`, {
       headers: {
@@ -133,14 +142,14 @@ async function ntuCoolFetch<T>(path: string): Promise<T> {
   let response = await request();
 
   /*
-   * A Canvas session can expire.
+   * COOL / ADFS session can expire.
    *
-   * In that case throw away our cookie
-   * jar, perform the ADFS login again,
-   * then retry exactly once.
+   * Background calls know exactly which
+   * user's session failed, so only invalidate
+   * that user's cookie jar.
    */
   if (isLoggedOut(response)) {
-    invalidateNtuCoolSession();
+    invalidateNtuCoolSession(userId);
 
     response = await request();
   }
@@ -166,21 +175,33 @@ async function ntuCoolFetch<T>(path: string): Promise<T> {
   const contentType = response.headers.get("content-type") ?? "";
 
   /*
-   * If Canvas silently redirected to a
-   * login page instead of returning 401,
-   * don't try to parse HTML as JSON.
+   * Canvas can sometimes redirect to an HTML
+   * login page rather than returning a clean 401.
    */
   if (!contentType.includes("application/json")) {
-    invalidateNtuCoolSession();
+    invalidateNtuCoolSession(userId);
 
     throw new NtuCoolApiError(401, path);
   }
 
   return response.json() as Promise<T>;
 }
+
+/*
+ * ==========================================
+ * Profile
+ * ==========================================
+ */
+
 export async function getNtuCoolProfile() {
   return ntuCoolFetch<NtuCoolProfile>("/users/self/profile");
 }
+
+/*
+ * ==========================================
+ * Courses
+ * ==========================================
+ */
 
 export async function getNtuCoolCourses() {
   return ntuCoolFetch<NtuCoolCourse[]>(
@@ -188,7 +209,20 @@ export async function getNtuCoolCourses() {
   );
 }
 
-export async function getNtuCoolAssignments(courseId: number) {
+export async function getNtuCoolCoursesForUser(userId: string) {
+  return ntuCoolFetch<NtuCoolCourse[]>(
+    "/courses?enrollment_state=active&per_page=50",
+    userId,
+  );
+}
+
+/*
+ * ==========================================
+ * Assignments
+ * ==========================================
+ */
+
+function buildAssignmentListPath(courseId: number) {
   const params = new URLSearchParams();
 
   params.set("order_by", "due_at");
@@ -197,15 +231,30 @@ export async function getNtuCoolAssignments(courseId: number) {
 
   params.append("include[]", "submission");
 
+  return `/courses/${courseId}/assignments?${params.toString()}`;
+}
+
+export async function getNtuCoolAssignments(courseId: number) {
+  return ntuCoolFetch<NtuCoolAssignment[]>(buildAssignmentListPath(courseId));
+}
+
+export async function getNtuCoolAssignmentsForUser(
+  userId: string,
+  courseId: number,
+) {
   return ntuCoolFetch<NtuCoolAssignment[]>(
-    `/courses/${courseId}/assignments?${params.toString()}`,
+    buildAssignmentListPath(courseId),
+    userId,
   );
 }
-export async function getNtuCoolAnnouncements(courseIds: number[]) {
-  if (courseIds.length === 0) {
-    return [];
-  }
 
+/*
+ * ==========================================
+ * Announcements
+ * ==========================================
+ */
+
+function buildAnnouncementListPath(courseIds: number[]) {
   const params = new URLSearchParams();
 
   for (const courseId of courseIds) {
@@ -216,10 +265,39 @@ export async function getNtuCoolAnnouncements(courseIds: number[]) {
 
   params.set("per_page", "100");
 
+  return `/announcements?${params.toString()}`;
+}
+
+export async function getNtuCoolAnnouncements(courseIds: number[]) {
+  if (courseIds.length === 0) {
+    return [];
+  }
+
   return ntuCoolFetch<NtuCoolAnnouncement[]>(
-    `/announcements?${params.toString()}`,
+    buildAnnouncementListPath(courseIds),
   );
 }
+
+export async function getNtuCoolAnnouncementsForUser(
+  userId: string,
+  courseIds: number[],
+) {
+  if (courseIds.length === 0) {
+    return [];
+  }
+
+  return ntuCoolFetch<NtuCoolAnnouncement[]>(
+    buildAnnouncementListPath(courseIds),
+    userId,
+  );
+}
+
+/*
+ * ==========================================
+ * Assignment detail
+ * ==========================================
+ */
+
 export type NtuCoolAssignmentDetail = NtuCoolAssignment & {
   course_id?: number;
 
@@ -244,6 +322,12 @@ export async function getNtuCoolAssignment(
     `/courses/${courseId}/assignments/${assignmentId}?${params.toString()}`,
   );
 }
+
+/*
+ * ==========================================
+ * Announcement detail
+ * ==========================================
+ */
 
 export type NtuCoolAnnouncementDetail = NtuCoolAnnouncement & {
   user_name?: string | null;

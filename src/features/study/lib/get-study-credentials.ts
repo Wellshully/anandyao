@@ -46,6 +46,16 @@ const accounts: StudyAccountConfig[] = [
   },
 ];
 
+export function getConfiguredStudyUserIds() {
+  return Array.from(
+    new Set(
+      accounts
+        .map((account) => account.userId)
+        .filter((userId): userId is string => Boolean(userId)),
+    ),
+  );
+}
+
 export function getStudyCredentials(userId: string): StudyCredentials {
   const account = accounts.find((item) => item.userId === userId);
 

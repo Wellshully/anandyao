@@ -1173,6 +1173,56 @@ export type Database = {
           },
         ]
       }
+      study_sync_runs: {
+        Row: {
+          announcements_count: number
+          assignments_count: number
+          courses_count: number
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          provider: string
+          started_at: string
+          status: string
+          trigger_source: string
+          user_id: string
+        }
+        Insert: {
+          announcements_count?: number
+          assignments_count?: number
+          courses_count?: number
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          provider?: string
+          started_at?: string
+          status: string
+          trigger_source: string
+          user_id: string
+        }
+        Update: {
+          announcements_count?: number
+          assignments_count?: number
+          courses_count?: number
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          provider?: string
+          started_at?: string
+          status?: string
+          trigger_source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_sync_runs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       study_sync_state: {
         Row: {
           last_synced_at: string

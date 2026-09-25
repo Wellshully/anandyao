@@ -284,15 +284,9 @@ async function loginNtuCool(userId: string): Promise<SessionFetch> {
   return sessionFetch;
 }
 
-export async function getNtuCoolSessionFetch(): Promise<SessionFetch> {
-  /*
-   * Determine which An & Yao user
-   * is making this request.
-   */
-  const user = await requireUser();
-
-  const userId = user.id;
-
+export async function getNtuCoolSessionFetchForUser(
+  userId: string,
+): Promise<SessionFetch> {
   const cached = sessionCache.get(userId);
 
   if (cached) {
@@ -320,14 +314,28 @@ export async function getNtuCoolSessionFetch(): Promise<SessionFetch> {
   }
 }
 
-export function invalidateNtuCoolSession() {
+export async function getNtuCoolSessionFetch(): Promise<SessionFetch> {
+  const user = await requireUser();
+
+  return getNtuCoolSessionFetchForUser(user.id);
+}
+
+export function invalidateNtuCoolSession(userId?: string) {
   /*
-   * Simplest safe behaviour:
-   * invalidate every cached COOL session.
+   * Prefer invalidating only one user's
+   * COOL session.
    *
-   * A future request will recreate only
-   * the current user's session.
+   * This prevents 堯's expired session from
+   * destroying 安's still-valid session.
    */
+  if (userId) {
+    sessionCache.delete(userId);
+
+    loginPromises.delete(userId);
+
+    return;
+  }
+
   sessionCache.clear();
 
   loginPromises.clear();
