@@ -71,6 +71,34 @@ function getItemState(item: TodayItem, now: number) {
 }
 
 function getRelativeLabel(item: TodayItem, now: number) {
+  /*
+   * Assignment has deadline semantics,
+   * not event start/end semantics.
+   */
+  if (item.kind === "study_assignment" && item.startAt !== null) {
+    const diff = item.startAt - now;
+
+    if (diff <= 0) {
+      return "已截止";
+    }
+
+    const minutes = Math.ceil(diff / 60_000);
+
+    if (minutes <= 60) {
+      return minutes <= 1 ? "即將截止" : `還有 ${minutes} 分鐘`;
+    }
+
+    const hours = Math.ceil(diff / 3_600_000);
+
+    if (hours <= 24) {
+      return `還有 ${hours} 小時`;
+    }
+
+    const days = Math.ceil(diff / 86_400_000);
+
+    return `${days} 天後截止`;
+  }
+
   if (item.startAt === null) {
     return null;
   }
@@ -96,6 +124,22 @@ function getRelativeLabel(item: TodayItem, now: number) {
   }
 
   return null;
+}
+
+function getItemSideLabel(item: TodayItem) {
+  if (item.kind === "study_assignment" || item.kind === "study_announcement") {
+    return "Study";
+  }
+
+  if (item.kind === "study_mail") {
+    return "Mail";
+  }
+
+  if (item.startAt !== null) {
+    return itemTimeFormatter.format(new Date(item.startAt));
+  }
+
+  return "Today";
 }
 
 export default function RelationshipClock({ items }: RelationshipClockProps) {
@@ -468,42 +512,44 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                   const content = (
                     <div
                       className={`
-                          flex
-                          gap-3
-                          p-4
-                          transition
+                            flex
+                            gap-3
+                            p-4
+                            transition
 
-                          ${
-                            state === "past" || state === "completed"
-                              ? "opacity-45"
-                              : ""
-                          }
+                            ${
+                              state === "past" || state === "completed"
+                                ? "opacity-45"
+                                : ""
+                            }
 
-                          ${
-                            state === "current" ? "bg-[var(--accent-soft)]" : ""
-                          }
-                        `}
+                            ${
+                              state === "current"
+                                ? "bg-[var(--accent-soft)]"
+                                : ""
+                            }
+                          `}
                     >
                       <div className="w-12 shrink-0 pt-0.5">
                         <p className="text-xs font-medium tabular-nums">
-                          {item.startAt !== null
-                            ? itemTimeFormatter.format(new Date(item.startAt))
-                            : "Today"}
+                          {getItemSideLabel(item)}
                         </p>
 
                         {relativeLabel && (
                           <p
                             className={`
-                                mt-1
-                                text-[9px]
-                                leading-3
+                                  mt-1
+                                  text-[9px]
+                                  leading-3
 
-                                ${
-                                  state === "current"
-                                    ? "text-[var(--accent)]"
-                                    : "text-[var(--muted)]"
-                                }
-                              `}
+                                  ${
+                                    state === "current"
+                                      ? "text-[var(--accent)]"
+                                      : item.kind === "study_assignment"
+                                        ? "text-[var(--accent)]"
+                                        : "text-[var(--muted)]"
+                                  }
+                                `}
                           >
                             {relativeLabel}
                           </p>
@@ -513,12 +559,12 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                       <div className="min-w-0 flex-1">
                         <p
                           className={`
-                              text-sm
-                              font-medium
-                              leading-5
+                                text-sm
+                                font-medium
+                                leading-5
 
-                              ${state === "completed" ? "line-through" : ""}
-                            `}
+                                ${state === "completed" ? "line-through" : ""}
+                              `}
                         >
                           {item.title}
                         </p>
@@ -537,17 +583,17 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                             disabled={isPending}
                             onClick={() => togglePlan(item)}
                             className="
-                                flex
-                                h-6
-                                w-6
-                                items-center
-                                justify-center
-                                rounded-full
-                                border
-                                border-[var(--border)]
-                                text-[10px]
-                                disabled:opacity-50
-                              "
+                                  flex
+                                  h-6
+                                  w-6
+                                  items-center
+                                  justify-center
+                                  rounded-full
+                                  border
+                                  border-[var(--border)]
+                                  text-[10px]
+                                  disabled:opacity-50
+                                "
                             aria-label={item.completed ? "取消完成" : "完成"}
                           >
                             {item.completed ? "✓" : ""}
@@ -567,7 +613,14 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                     </div>
                   );
 
-                  if (item.kind === "date" && item.href) {
+                  /*
+                   * Dates + Study reminders
+                   * can all navigate.
+                   *
+                   * Personal plans still have
+                   * href=null and remain editable.
+                   */
+                  if (item.href) {
                     return (
                       <Link
                         key={`${item.kind}-${item.id}`}

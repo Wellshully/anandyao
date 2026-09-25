@@ -33,6 +33,13 @@ const modules = [
     description: "想寫下來的事情，就是個記事本",
     action: "打開 Journal →",
   },
+  {
+    href: "/study",
+    number: "05",
+    title: "Study",
+    description: "課程、作業、公告和學校信箱。",
+    action: "打開 Study →",
+  },
 ];
 
 export default function NormalHome() {

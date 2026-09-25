@@ -888,6 +888,235 @@ export type Database = {
         }
         Relationships: []
       }
+      study_announcements: {
+        Row: {
+          cool_announcement_id: number
+          cool_course_id: number | null
+          course_name: string | null
+          created_at: string
+          html_url: string
+          id: string
+          posted_at: string | null
+          read_state: string
+          seen_at: string | null
+          synced_at: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          cool_announcement_id: number
+          cool_course_id?: number | null
+          course_name?: string | null
+          created_at?: string
+          html_url: string
+          id?: string
+          posted_at?: string | null
+          read_state: string
+          seen_at?: string | null
+          synced_at: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          cool_announcement_id?: number
+          cool_course_id?: number | null
+          course_name?: string | null
+          created_at?: string
+          html_url?: string
+          id?: string
+          posted_at?: string | null
+          read_state?: string
+          seen_at?: string | null
+          synced_at?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_announcements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_assignments: {
+        Row: {
+          cool_assignment_id: number
+          cool_course_id: number
+          course_name: string
+          created_at: string
+          due_at: string | null
+          html_url: string
+          id: string
+          late: boolean
+          missing: boolean
+          submission_state: string | null
+          submitted: boolean
+          submitted_at: string | null
+          synced_at: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          cool_assignment_id: number
+          cool_course_id: number
+          course_name: string
+          created_at?: string
+          due_at?: string | null
+          html_url: string
+          id?: string
+          late?: boolean
+          missing?: boolean
+          submission_state?: string | null
+          submitted?: boolean
+          submitted_at?: string | null
+          synced_at: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          cool_assignment_id?: number
+          cool_course_id?: number
+          course_name?: string
+          created_at?: string
+          due_at?: string | null
+          html_url?: string
+          id?: string
+          late?: boolean
+          missing?: boolean
+          submission_state?: string | null
+          submitted?: boolean
+          submitted_at?: string | null
+          synced_at?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_assignments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_courses: {
+        Row: {
+          cool_course_id: number
+          course_code: string | null
+          created_at: string
+          id: string
+          name: string
+          synced_at: string
+          user_id: string
+        }
+        Insert: {
+          cool_course_id: number
+          course_code?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          synced_at: string
+          user_id: string
+        }
+        Update: {
+          cool_course_id?: number
+          course_code?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          synced_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_courses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_mail_messages: {
+        Row: {
+          created_at: string
+          from_address: string | null
+          from_name: string | null
+          id: string
+          message_id_header: string | null
+          seen_at: string | null
+          sent_at: string | null
+          subject: string
+          synced_at: string
+          uidl: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          from_address?: string | null
+          from_name?: string | null
+          id?: string
+          message_id_header?: string | null
+          seen_at?: string | null
+          sent_at?: string | null
+          subject?: string
+          synced_at?: string
+          uidl: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          from_address?: string | null
+          from_name?: string | null
+          id?: string
+          message_id_header?: string | null
+          seen_at?: string | null
+          sent_at?: string | null
+          subject?: string
+          synced_at?: string
+          uidl?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_mail_messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_sync_state: {
+        Row: {
+          last_synced_at: string
+          user_id: string
+        }
+        Insert: {
+          last_synced_at: string
+          user_id: string
+        }
+        Update: {
+          last_synced_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_sync_state_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
