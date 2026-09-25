@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { signOut } from "@/app/auth/actions";
 
@@ -8,9 +8,7 @@ import type { ProjectUsage } from "@/features/profile/usage-types";
 
 type ProfileMenuProps = {
   displayName: string;
-
   isOwner: boolean;
-
   usage: ProjectUsage | null;
 };
 
@@ -75,12 +73,48 @@ export default function ProfileMenu({
   isOwner,
   usage,
 }: ProfileMenuProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const [isOpen, setIsOpen] = useState(false);
 
   const initial = displayName.trim().charAt(0).toUpperCase() || "?";
 
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (containerRef.current && !containerRef.current.contains(target)) {
+        setIsOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         type="button"
         onClick={() => setIsOpen((value) => !value)}
@@ -135,13 +169,13 @@ export default function ProfileMenu({
             <details className="mt-5 border-t border-[var(--border)] pt-4">
               <summary
                 className="
-                    cursor-pointer
-                    select-none
-                    text-[10px]
-                    uppercase
-                    tracking-[0.2em]
-                    text-[var(--muted)]
-                  "
+                  cursor-pointer
+                  select-none
+                  text-[10px]
+                  uppercase
+                  tracking-[0.2em]
+                  text-[var(--muted)]
+                "
               >
                 System
               </summary>

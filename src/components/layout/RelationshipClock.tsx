@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import type { FormEvent } from "react";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -28,21 +28,15 @@ type RelationshipClockProps = {
 
 const dateFormatter = new Intl.DateTimeFormat("zh-TW", {
   timeZone: "Asia/Taipei",
-
   month: "long",
-
   day: "numeric",
-
   weekday: "short",
 });
 
 const itemTimeFormatter = new Intl.DateTimeFormat("zh-TW", {
   timeZone: "Asia/Taipei",
-
   hour: "2-digit",
-
   minute: "2-digit",
-
   hour12: false,
 });
 
@@ -147,6 +141,8 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
 
   const now = useCurrentTime();
 
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const [isOpen, setIsOpen] = useState(false);
 
   const [showAddForm, setShowAddForm] = useState(false);
@@ -154,6 +150,43 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
   const [error, setError] = useState("");
 
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function closePanel() {
+      setIsOpen(false);
+      setShowAddForm(false);
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (containerRef.current && !containerRef.current.contains(target)) {
+        closePanel();
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closePanel();
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
 
   if (!now) {
     return (
@@ -194,9 +227,7 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
     startTransition(async () => {
       const result = await createPersonalPlanAction({
         title: String(data.get("title") ?? ""),
-
         startTime: String(data.get("startTime") ?? "") || undefined,
-
         durationMinutes: Number(data.get("durationMinutes") ?? 30),
       });
 
@@ -264,7 +295,7 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
   }
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         type="button"
         onClick={() => setIsOpen((value) => !value)}
@@ -334,10 +365,10 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
             fixed
             left-4
             right-4
-            top-[7.5rem]
+            top-[4.75rem]
             z-50
 
-            max-h-[calc(100dvh-9rem)]
+            max-h-[calc(100dvh-6rem)]
 
             overflow-hidden
             rounded-[var(--radius-lg)]
@@ -453,13 +484,9 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                       "
                     >
                       <option value="15">15 分鐘</option>
-
                       <option value="30">30 分鐘</option>
-
                       <option value="60">1 小時</option>
-
                       <option value="90">1.5 小時</option>
-
                       <option value="120">2 小時</option>
                     </select>
                   </label>
@@ -512,23 +539,19 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                   const content = (
                     <div
                       className={`
-                            flex
-                            gap-3
-                            p-4
-                            transition
+                        flex
+                        gap-3
+                        p-4
+                        transition
 
-                            ${
-                              state === "past" || state === "completed"
-                                ? "opacity-45"
-                                : ""
-                            }
+                        ${
+                          state === "past" || state === "completed"
+                            ? "opacity-45"
+                            : ""
+                        }
 
-                            ${
-                              state === "current"
-                                ? "bg-[var(--accent-soft)]"
-                                : ""
-                            }
-                          `}
+                        ${state === "current" ? "bg-[var(--accent-soft)]" : ""}
+                      `}
                     >
                       <div className="w-12 shrink-0 pt-0.5">
                         <p className="text-xs font-medium tabular-nums">
@@ -538,18 +561,18 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                         {relativeLabel && (
                           <p
                             className={`
-                                  mt-1
-                                  text-[9px]
-                                  leading-3
+                              mt-1
+                              text-[9px]
+                              leading-3
 
-                                  ${
-                                    state === "current"
-                                      ? "text-[var(--accent)]"
-                                      : item.kind === "study_assignment"
-                                        ? "text-[var(--accent)]"
-                                        : "text-[var(--muted)]"
-                                  }
-                                `}
+                              ${
+                                state === "current"
+                                  ? "text-[var(--accent)]"
+                                  : item.kind === "study_assignment"
+                                    ? "text-[var(--accent)]"
+                                    : "text-[var(--muted)]"
+                              }
+                            `}
                           >
                             {relativeLabel}
                           </p>
@@ -559,12 +582,12 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                       <div className="min-w-0 flex-1">
                         <p
                           className={`
-                                text-sm
-                                font-medium
-                                leading-5
+                            text-sm
+                            font-medium
+                            leading-5
 
-                                ${state === "completed" ? "line-through" : ""}
-                              `}
+                            ${state === "completed" ? "line-through" : ""}
+                          `}
                         >
                           {item.title}
                         </p>
@@ -583,17 +606,17 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                             disabled={isPending}
                             onClick={() => togglePlan(item)}
                             className="
-                                  flex
-                                  h-6
-                                  w-6
-                                  items-center
-                                  justify-center
-                                  rounded-full
-                                  border
-                                  border-[var(--border)]
-                                  text-[10px]
-                                  disabled:opacity-50
-                                "
+                              flex
+                              h-6
+                              w-6
+                              items-center
+                              justify-center
+                              rounded-full
+                              border
+                              border-[var(--border)]
+                              text-[10px]
+                              disabled:opacity-50
+                            "
                             aria-label={item.completed ? "取消完成" : "完成"}
                           >
                             {item.completed ? "✓" : ""}
@@ -603,7 +626,11 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                             type="button"
                             disabled={isPending}
                             onClick={() => removePlan(item)}
-                            className="text-xs text-[var(--muted)] hover:text-[var(--danger)]"
+                            className="
+                              text-xs
+                              text-[var(--muted)]
+                              hover:text-[var(--danger)]
+                            "
                             aria-label="刪除"
                           >
                             ×
@@ -613,13 +640,6 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                     </div>
                   );
 
-                  /*
-                   * Dates + Study reminders
-                   * can all navigate.
-                   *
-                   * Personal plans still have
-                   * href=null and remain editable.
-                   */
                   if (item.href) {
                     return (
                       <Link

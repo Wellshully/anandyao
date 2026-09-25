@@ -1,17 +1,16 @@
-const MAX_SIZE = 1920;
+const MAX_SIZE = 1280;
 
-const TARGET_SIZE_BYTES = 500 * 1024;
+const TARGET_SIZE_BYTES = 200 * 1024;
 
-const INITIAL_QUALITY = 0.78;
+const INITIAL_QUALITY = 0.68;
 
-const MIN_QUALITY = 0.5;
+const MIN_QUALITY = 0.39;
 
-const QUALITY_STEP = 0.07;
+const QUALITY_STEP = 0.06;
 
-const RESIZE_FACTOR = 0.85;
+const RESIZE_FACTOR = 0.82;
 
-const MIN_LONG_EDGE = 960;
-
+const MIN_LONG_EDGE = 800;
 type OptimizedImage = {
   file: File;
   width: number;

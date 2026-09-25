@@ -39,5 +39,9 @@ export const siteConfig = {
       label: "Journal",
       href: "/journal",
     },
+    {
+      href: "/study",
+      label: "Study",
+    },
   ],
 } as const;
