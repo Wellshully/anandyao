@@ -37,7 +37,7 @@ export async function syncStudyAction(): Promise<SyncStudyResult> {
 
       announcements: result.announcements,
 
-      unreadAnnouncements: result.unreadAnnouncements,
+      unreadAnnouncements: result.announcements,
     };
   } catch (cause) {
     console.error("syncStudyAction:", cause);
