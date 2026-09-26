@@ -9,7 +9,7 @@ import {
   type PetConversationMessage,
 } from "@/features/pet/ai/conversation";
 import { talkToPet } from "@/features/pet/ai/talk-to-pet";
-
+import { savePetMemory } from "@/features/pet/ai/save-pet-memory";
 import type { PetReply } from "@/features/pet/ai/pet-reply";
 
 const conversationSchema = z
@@ -42,6 +42,16 @@ export async function talkToPetAction(
 
     const reply = await talkToPet(message, safeConversation);
 
+    if (reply.memory) {
+      try {
+        await savePetMemory(reply.memory);
+      } catch (cause) {
+        console.error(
+          "Failed to save pet memory:",
+          cause instanceof Error ? cause.message : cause,
+        );
+      }
+    }
     return {
       success: true,
       reply,

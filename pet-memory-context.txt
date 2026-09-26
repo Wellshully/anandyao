@@ -1,0 +1,865 @@
+
+===== src/features/pet/ai/build-pet-context.ts =====
+import "server-only";
+
+import { requireUser } from "@/lib/auth/require-user";
+import { createClient } from "@/lib/supabase/server";
+
+import { getPet } from "@/features/pet/lib/get-pet";
+
+const EVENT_LABELS: Record<string, string> = {
+  feed: "餵食",
+  pet: "摸摸",
+  play: "玩耍",
+};
+
+export async function buildPetContext() {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const pet = await getPet();
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", user.id)
+    .single();
+
+  if (profileError) {
+    throw new Error(profileError.message);
+  }
+
+  /*
+   * Only give the LLM a small number of
+   * recent interactions.
+   *
+   * Do not send raw metadata or the full
+   * event history.
+   */
+  const { data: events, error: eventsError } = await supabase
+    .from("pet_events")
+    .select(
+      `
+        user_id,
+        event_type,
+        created_at
+      `,
+    )
+    .eq("pet_id", pet.id)
+    .order("created_at", {
+      ascending: false,
+    })
+    .limit(12);
+
+  if (eventsError) {
+    throw new Error(eventsError.message);
+  }
+
+  const userIds = [...new Set((events ?? []).map((event) => event.user_id))];
+
+  const nameByUserId = new Map<string, string>();
+
+  if (userIds.length > 0) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, display_name")
+      .in("id", userIds);
+
+    if (profilesError) {
+      throw new Error(profilesError.message);
+    }
+
+    for (const item of profiles ?? []) {
+      nameByUserId.set(item.id, item.display_name);
+    }
+  }
+
+  const recentEvents = (events ?? []).map((event) => {
+    const actor = nameByUserId.get(event.user_id) ?? "其中一位主人";
+
+    const action = EVENT_LABELS[event.event_type] ?? event.event_type;
+
+    return `${actor}：${action}`;
+  });
+
+  const state = pet.state;
+
+  return `
+目前正在跟你說話的人：
+${profile.display_name}
+
+你的名字：
+${pet.name}
+
+你的目前狀態：
+- 等級：Lv.${state.level}
+- XP：${Math.round(state.xp)}
+- 飽足：${Math.round(state.hunger)} / 100
+- 心情：${Math.round(state.happiness)} / 100
+- 精力：${Math.round(state.energy)} / 100
+- 當前情緒：${state.mood}
+
+最近的互動：
+${
+  recentEvents.length > 0
+    ? recentEvents.map((event) => `- ${event}`).join("\n")
+    : "- 最近還沒有互動紀錄"
+}
+`.trim();
+}
+
+===== src/features/pet/ai/pet-reply.ts =====
+import { z } from "zod";
+
+export const petPoseSchema = z.enum([
+  "normal",
+  "cute",
+  "happy",
+  "excited",
+
+  "angry",
+  "sad",
+  "resting",
+  "sleeping",
+
+  "love",
+  "petted",
+  "playing",
+  "rolling",
+]);
+
+export const petReplySchema = z.object({
+  reply: z.string().min(1).max(160),
+
+  pose: petPoseSchema,
+});
+
+export type PetPose = z.infer<typeof petPoseSchema>;
+
+export type PetReply = z.infer<typeof petReplySchema>;
+
+===== src/features/pet/ai/talk-to-pet.ts =====
+import "server-only";
+
+import { AI_CONFIG } from "@/lib/ai/config";
+import { generateStructured } from "@/lib/ai/generate-structured";
+
+import { buildPetContext } from "@/features/pet/ai/build-pet-context";
+import {
+  trimPetConversation,
+  type PetConversationMessage,
+} from "@/features/pet/ai/conversation";
+import { PET_PERSONA } from "@/features/pet/ai/pet-persona";
+import { petReplySchema, type PetReply } from "@/features/pet/ai/pet-reply";
+
+export async function talkToPet(
+  message: string,
+  conversation: PetConversationMessage[] = [],
+): Promise<PetReply> {
+  const normalized = message.trim();
+
+  if (!normalized) {
+    throw new Error("Message is empty.");
+  }
+
+  if (normalized.length > AI_CONFIG.maxUserMessageLength) {
+    throw new Error(
+      `Message is too long. Maximum ${AI_CONFIG.maxUserMessageLength} characters.`,
+    );
+  }
+
+  const context = await buildPetContext();
+
+  const recentConversation = trimPetConversation(conversation);
+
+  const conversationText =
+    recentConversation.length > 0
+      ? recentConversation
+          .map((item) => {
+            const speaker = item.role === "user" ? "主人" : "你";
+
+            return `${speaker}：${item.content}`;
+          })
+          .join("\n")
+      : "目前還沒有前面的對話。";
+
+  const prompt = `
+以下是你目前知道的真實資料：
+
+${context}
+
+以下是你和這位主人最近的對話：
+
+${conversationText}
+
+現在主人對你說：
+
+${normalized}
+
+請根據你的身份、個性、目前狀態，以及最近的對話回答。
+
+如果主人提到前面聊過的事情，可以自然地記得並接續話題。
+
+不要假裝記得「最近的對話」以外沒有提供給你的事情。
+不要重複列出數值。
+不要解釋你的推理。
+只需要自然地回應主人。
+`.trim();
+
+  return generateStructured({
+    systemInstruction: PET_PERSONA,
+    prompt,
+    schema: petReplySchema,
+  });
+}
+
+===== src/features/pet/ai/actions.ts =====
+"use server";
+
+import { unstable_rethrow } from "next/navigation";
+import { z } from "zod";
+
+import {
+  PET_CONVERSATION_MAX_MESSAGES,
+  trimPetConversation,
+  type PetConversationMessage,
+} from "@/features/pet/ai/conversation";
+import { talkToPet } from "@/features/pet/ai/talk-to-pet";
+
+import type { PetReply } from "@/features/pet/ai/pet-reply";
+
+const conversationSchema = z
+  .array(
+    z.object({
+      role: z.enum(["user", "pet"]),
+      content: z.string().min(1).max(500),
+    }),
+  )
+  .max(PET_CONVERSATION_MAX_MESSAGES);
+
+type TalkToPetResult =
+  | {
+      success: true;
+      reply: PetReply;
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
+export async function talkToPetAction(
+  message: string,
+  conversation: PetConversationMessage[] = [],
+): Promise<TalkToPetResult> {
+  try {
+    const parsedConversation = conversationSchema.parse(conversation);
+
+    const safeConversation = trimPetConversation(parsedConversation);
+
+    const reply = await talkToPet(message, safeConversation);
+
+    return {
+      success: true,
+      reply,
+    };
+  } catch (cause) {
+    unstable_rethrow(cause);
+
+    console.error(
+      "Talk to pet failed:",
+      cause instanceof Error ? cause.message : cause,
+    );
+
+    return {
+      success: false,
+      error:
+        cause instanceof Error
+          ? cause.message
+          : "Pet is unavailable right now.",
+    };
+  }
+}
+
+===== src/features/pet/ai/conversation.ts =====
+export type PetConversationMessage = {
+  role: "user" | "pet";
+  content: string;
+};
+
+export const PET_CONVERSATION_MAX_MESSAGES = 12;
+
+export const PET_CONVERSATION_CHAR_BUDGET = 2400;
+
+export function trimPetConversation(
+  messages: PetConversationMessage[],
+): PetConversationMessage[] {
+  const recent = messages.slice(-PET_CONVERSATION_MAX_MESSAGES);
+
+  const result: PetConversationMessage[] = [];
+
+  let usedCharacters = 0;
+
+  for (let index = recent.length - 1; index >= 0; index -= 1) {
+    const message = recent[index];
+
+    if (
+      usedCharacters + message.content.length >
+      PET_CONVERSATION_CHAR_BUDGET
+    ) {
+      break;
+    }
+
+    result.unshift(message);
+    usedCharacters += message.content.length;
+  }
+
+  return result;
+}
+
+===== src/features/pet/actions.ts =====
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
+
+import { requireUser } from "@/lib/auth/require-user";
+import { createClient } from "@/lib/supabase/server";
+
+import { getPet } from "@/features/pet/lib/get-pet";
+import { applyPetAction } from "@/features/pet/lib/apply-pet-action";
+
+import type { PetAction, PetViewState } from "@/features/pet/types";
+
+type PetActionResult =
+  | {
+      success: true;
+      state: PetViewState;
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
+const VALID_ACTIONS = new Set<PetAction>(["feed", "pet", "play"]);
+
+const MAX_UPDATE_ATTEMPTS = 3;
+
+export async function performPetAction(
+  action: PetAction,
+): Promise<PetActionResult> {
+  try {
+    if (!VALID_ACTIONS.has(action)) {
+      return {
+        success: false,
+        error: "Unknown pet action.",
+      };
+    }
+
+    const user = await requireUser();
+    const supabase = await createClient();
+
+    /*
+     * getPet() also takes care of creating
+     * the shared pet the first time /pet
+     * is used.
+     */
+    const pet = await getPet();
+
+    /*
+     * Optimistic retry:
+     *
+     * An and Yao may interact with the pet
+     * at almost exactly the same time.
+     *
+     * state_calculated_at acts as our
+     * lightweight version marker so one
+     * update does not silently overwrite
+     * the other.
+     */
+    for (let attempt = 0; attempt < MAX_UPDATE_ATTEMPTS; attempt += 1) {
+      const { data: currentPet, error: loadError } = await supabase
+        .from("pets")
+        .select(
+          `
+            id,
+            hunger,
+            happiness,
+            energy,
+            xp,
+            state_calculated_at
+          `,
+        )
+        .eq("id", pet.id)
+        .maybeSingle();
+
+      if (loadError) {
+        throw new Error(loadError.message);
+      }
+
+      if (!currentPet) {
+        return {
+          success: false,
+          error: "Pet not found.",
+        };
+      }
+
+      const now = new Date();
+
+      const nextState = applyPetAction(
+        {
+          hunger: currentPet.hunger,
+
+          happiness: currentPet.happiness,
+
+          energy: currentPet.energy,
+
+          xp: currentPet.xp,
+
+          /*
+           * calculatePetState() derives
+           * the real level from XP.
+           */
+          level: 1,
+
+          calculatedAt: currentPet.state_calculated_at,
+        },
+        action,
+        now,
+      );
+
+      const { data: updatedPet, error: updateError } = await supabase
+        .from("pets")
+        .update({
+          hunger: nextState.hunger,
+
+          happiness: nextState.happiness,
+
+          energy: nextState.energy,
+
+          xp: nextState.xp,
+
+          state_calculated_at: nextState.calculatedAt,
+
+          updated_at: nextState.calculatedAt,
+        })
+        .eq("id", currentPet.id)
+        .eq("state_calculated_at", currentPet.state_calculated_at)
+        .select("id")
+        .maybeSingle();
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+
+      /*
+       * Another interaction changed the
+       * pet between SELECT and UPDATE.
+       *
+       * Load the newest state and retry.
+       */
+      if (!updatedPet) {
+        continue;
+      }
+
+      const effect = {
+        hunger: nextState.hunger - currentPet.hunger,
+
+        happiness: nextState.happiness - currentPet.happiness,
+
+        energy: nextState.energy - currentPet.energy,
+
+        xp: nextState.xp - currentPet.xp,
+      };
+
+      const { error: eventError } = await supabase.from("pet_events").insert({
+        pet_id: currentPet.id,
+
+        user_id: user.id,
+
+        event_type: action,
+
+        metadata: {
+          hungerDelta: effect.hunger,
+
+          happinessDelta: effect.happiness,
+
+          energyDelta: effect.energy,
+
+          xpDelta: effect.xp,
+        },
+      });
+
+      /*
+       * The interaction itself already
+       * succeeded. Do not make the user
+       * repeat it just because telemetry /
+       * history logging failed.
+       */
+      if (eventError) {
+        console.warn("Failed to record pet event:", eventError.message);
+      }
+
+      revalidatePath("/pet");
+
+      return {
+        success: true,
+        state: nextState,
+      };
+    }
+
+    return {
+      success: false,
+      error: "Pet was updated at the same time. Please try again.",
+    };
+  } catch (cause) {
+    unstable_rethrow(cause);
+
+    console.error(
+      "Pet interaction failed:",
+      cause instanceof Error ? cause.message : cause,
+    );
+
+    return {
+      success: false,
+      error: cause instanceof Error ? cause.message : "Pet interaction failed.",
+    };
+  }
+}
+
+===== src/features/pet/lib/get-pet.ts =====
+import "server-only";
+
+import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth/require-user";
+
+import { calculatePetState } from "@/features/pet/lib/calculate-pet-state";
+
+import type { PetViewState } from "@/features/pet/types";
+
+export type PetData = {
+  id: string;
+  spaceId: string;
+  name: string;
+  state: PetViewState;
+};
+
+export async function getPet(): Promise<PetData> {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  /*
+   * First try to load an existing pet.
+   *
+   * RLS guarantees that this user can only
+   * see pets belonging to their own space.
+   */
+  const { data: existingPet, error: existingPetError } = await supabase
+    .from("pets")
+    .select(
+      `
+        id,
+        space_id,
+        name,
+        hunger,
+        happiness,
+        energy,
+        xp,
+        state_calculated_at
+      `,
+    )
+    .limit(1)
+    .maybeSingle();
+
+  if (existingPetError) {
+    throw new Error(existingPetError.message);
+  }
+
+  if (existingPet) {
+    return {
+      id: existingPet.id,
+
+      spaceId: existingPet.space_id,
+
+      name: existingPet.name,
+
+      state: calculatePetState({
+        hunger: existingPet.hunger,
+
+        happiness: existingPet.happiness,
+
+        energy: existingPet.energy,
+
+        xp: existingPet.xp,
+
+        level: 1,
+
+        calculatedAt: existingPet.state_calculated_at,
+      }),
+    };
+  }
+
+  /*
+   * No pet exists yet.
+   *
+   * Find the user's shared space so that
+   * we can create the first pet there.
+   */
+  const { data: membership, error: membershipError } = await supabase
+    .from("space_members")
+    .select("space_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (membershipError) {
+    throw new Error(membershipError.message);
+  }
+
+  if (!membership) {
+    throw new Error("No shared space found.");
+  }
+
+  /*
+   * Both users could theoretically open
+   * /pet for the first time simultaneously.
+   *
+   * space_id is unique, so upsert prevents
+   * duplicate pets from being created.
+   */
+  const { error: createError } = await supabase.from("pets").upsert(
+    {
+      space_id: membership.space_id,
+
+      name: "萌蛋",
+    },
+    {
+      onConflict: "space_id",
+
+      ignoreDuplicates: true,
+    },
+  );
+
+  if (createError) {
+    throw new Error(createError.message);
+  }
+
+  /*
+   * Load the row again instead of relying
+   * on the insert result, because another
+   * user may have won the creation race.
+   */
+  const { data: createdPet, error: createdPetError } = await supabase
+    .from("pets")
+    .select(
+      `
+        id,
+        space_id,
+        name,
+        hunger,
+        happiness,
+        energy,
+        xp,
+        state_calculated_at
+      `,
+    )
+    .eq("space_id", membership.space_id)
+    .single();
+
+  if (createdPetError || !createdPet) {
+    throw new Error(createdPetError?.message ?? "Failed to create pet.");
+  }
+
+  return {
+    id: createdPet.id,
+
+    spaceId: createdPet.space_id,
+
+    name: createdPet.name,
+
+    state: calculatePetState({
+      hunger: createdPet.hunger,
+
+      happiness: createdPet.happiness,
+
+      energy: createdPet.energy,
+
+      xp: createdPet.xp,
+
+      level: 1,
+
+      calculatedAt: createdPet.state_calculated_at,
+    }),
+  };
+}
+
+===== src/features/pet/types.ts =====
+export type PetMood = "normal" | "happy" | "sad" | "hungry" | "sleepy";
+
+export type PetAction = "feed" | "pet" | "play";
+
+export type PetAnimation = "idle" | "feed" | "pet" | "play";
+
+export type PetState = {
+  hunger: number;
+  happiness: number;
+  energy: number;
+
+  xp: number;
+  level: number;
+
+  calculatedAt: string;
+};
+
+export type PetViewState = PetState & {
+  mood: PetMood;
+};
+
+===== PET DATABASE TYPES =====
+698-            referencedRelation: "spaces"
+699-            referencedColumns: ["id"]
+700-          },
+701-        ]
+702-      }
+703:      pet_events: {
+704-        Row: {
+705-          created_at: string
+706-          event_type: string
+707-          id: string
+708-          metadata: Json
+709-          pet_id: string
+710-          user_id: string
+711-        }
+712-        Insert: {
+713-          created_at?: string
+714-          event_type: string
+715-          id?: string
+716-          metadata?: Json
+717-          pet_id: string
+718-          user_id: string
+719-        }
+720-        Update: {
+721-          created_at?: string
+722-          event_type?: string
+723-          id?: string
+724-          metadata?: Json
+725-          pet_id?: string
+726-          user_id?: string
+727-        }
+728-        Relationships: [
+729-          {
+730-            foreignKeyName: "pet_events_pet_id_fkey"
+731-            columns: ["pet_id"]
+732-            isOneToOne: false
+733-            referencedRelation: "pets"
+734-            referencedColumns: ["id"]
+735-          },
+736-          {
+737-            foreignKeyName: "pet_events_user_id_fkey"
+738-            columns: ["user_id"]
+739-            isOneToOne: false
+740-            referencedRelation: "profiles"
+741-            referencedColumns: ["id"]
+742-          },
+743-        ]
+744-      }
+745:      pets: {
+746-        Row: {
+747-          created_at: string
+748-          energy: number
+749-          happiness: number
+750-          hunger: number
+751-          id: string
+752-          name: string
+753-          space_id: string
+754-          state_calculated_at: string
+755-          updated_at: string
+756-          xp: number
+757-        }
+758-        Insert: {
+759-          created_at?: string
+760-          energy?: number
+761-          happiness?: number
+762-          hunger?: number
+763-          id?: string
+764-          name?: string
+765-          space_id: string
+766-          state_calculated_at?: string
+767-          updated_at?: string
+768-          xp?: number
+769-        }
+770-        Update: {
+771-          created_at?: string
+772-          energy?: number
+773-          happiness?: number
+774-          hunger?: number
+775-          id?: string
+776-          name?: string
+777-          space_id?: string
+778-          state_calculated_at?: string
+779-          updated_at?: string
+780-          xp?: number
+781-        }
+782-        Relationships: [
+783-          {
+784-            foreignKeyName: "pets_space_id_fkey"
+785-            columns: ["space_id"]
+786-            isOneToOne: true
+787-            referencedRelation: "spaces"
+788-            referencedColumns: ["id"]
+789-          },
+790-        ]
+791-      }
+792-      places: {
+793-        Row: {
+794-          address: string | null
+795-          created_at: string
+796-          created_by: string | null
+797-          id: string
+798-          latitude: number | null
+799-          longitude: number | null
+800-          name: string
+801-          note: string | null
+802-          space_id: string
+803-          status: string
+804-          updated_at: string
+805-          visited_on: string | null
+806-        }
+807-        Insert: {
+808-          address?: string | null
+809-          created_at?: string
+810-          created_by?: string | null
+811-          id?: string
+812-          latitude?: number | null
+813-          longitude?: number | null
+814-          name: string
+815-          note?: string | null
+816-          space_id: string
+817-          status?: string
+818-          updated_at?: string
+819-          visited_on?: string | null
+820-        }
+821-        Update: {
+822-          address?: string | null
+823-          created_at?: string
+824-          created_by?: string | null
+825-          id?: string
+826-          latitude?: number | null
+827-          longitude?: number | null
+828-          name?: string
+829-          note?: string | null
+830-          space_id?: string
+831-          status?: string
+832-          updated_at?: string
+833-          visited_on?: string | null
+834-        }
+835-        Relationships: [
+836-          {
+837-            foreignKeyName: "places_space_id_fkey"
+838-            columns: ["space_id"]
+839-            isOneToOne: false
+840-            referencedRelation: "spaces"
+841-            referencedColumns: ["id"]
+842-          },
+843-        ]
+844-      }
+845-      profiles: {

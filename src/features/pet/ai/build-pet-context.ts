@@ -3,6 +3,7 @@ import "server-only";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 
+import { selectPetMemories } from "@/features/pet/ai/select-pet-memories";
 import { getPet } from "@/features/pet/lib/get-pet";
 
 const EVENT_LABELS: Record<string, string> = {
@@ -11,8 +12,9 @@ const EVENT_LABELS: Record<string, string> = {
   play: "玩耍",
 };
 
-export async function buildPetContext() {
+export async function buildPetContext(memoryQuery: string) {
   const user = await requireUser();
+
   const supabase = await createClient();
 
   const pet = await getPet();
@@ -28,20 +30,27 @@ export async function buildPetContext() {
   }
 
   /*
-   * Only give the LLM a small number of
-   * recent interactions.
-   *
-   * Do not send raw metadata or the full
-   * event history.
+   * Select only memories that are useful for
+   * the current conversation.
+   */
+  const memories = await selectPetMemories({
+    petId: pet.id,
+    currentUserId: user.id,
+    query: memoryQuery,
+  });
+
+  /*
+   * Recent physical interactions are separate
+   * from long-term memories.
    */
   const { data: events, error: eventsError } = await supabase
     .from("pet_events")
     .select(
       `
-        user_id,
-        event_type,
-        created_at
-      `,
+          user_id,
+          event_type,
+          created_at
+        `,
     )
     .eq("pet_id", pet.id)
     .order("created_at", {
@@ -80,6 +89,17 @@ export async function buildPetContext() {
     return `${actor}：${action}`;
   });
 
+  const memoryLines = memories.map((memory) => {
+    const importanceLabel =
+      memory.importance === 3
+        ? "核心記憶"
+        : memory.importance === 2
+          ? "長期記憶"
+          : "近期記憶";
+
+    return `- [${importanceLabel}] ${memory.subjectName}：${memory.content}`;
+  });
+
   const state = pet.state;
 
   return `
@@ -102,6 +122,13 @@ ${
   recentEvents.length > 0
     ? recentEvents.map((event) => `- ${event}`).join("\n")
     : "- 最近還沒有互動紀錄"
+}
+
+你記得的事情：
+${
+  memoryLines.length > 0
+    ? memoryLines.join("\n")
+    : "- 目前沒有和這個話題直接相關的長期記憶"
 }
 `.trim();
 }
