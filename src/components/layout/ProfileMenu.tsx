@@ -3,15 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 
 import { signOut } from "@/app/auth/actions";
-
+import InteractionSettings from "@/features/interactions/components/InteractionSettings";
 import type { ProjectUsage } from "@/features/profile/usage-types";
 import NotificationSettings from "@/features/notifications/components/NotificationSettings";
 type ProfileMenuProps = {
   displayName: string;
   isOwner: boolean;
   usage: ProjectUsage | null;
+  interactionActionName: string;
 };
-
 const STORAGE_LIMIT = 1_000_000_000;
 
 const DATABASE_LIMIT = 500_000_000;
@@ -67,11 +67,11 @@ function UsageRow({
     </div>
   );
 }
-
 export default function ProfileMenu({
   displayName,
   isOwner,
   usage,
+  interactionActionName,
 }: ProfileMenuProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -171,7 +171,7 @@ export default function ProfileMenu({
 
             <NotificationSettings />
           </div>
-
+          <InteractionSettings initialActionName={interactionActionName} />
           {isOwner && usage && (
             <details className="mt-5 border-t border-[var(--border)] pt-4">
               <summary
