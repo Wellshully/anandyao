@@ -62,6 +62,31 @@ export async function buildAppContext({
 - upcoming 的行程絕對不可描述成已經去過、剛回來、已經完成或已經發生。
 - past 的行程才可以描述成已經發生。
 - 如果最近對話中你自己先前說過的內容與 app_context 衝突，以 app_context 為準。
+
+Places 狀態規則：
+
+- places.wantToGo：
+  使用者把這些地方標記為「想去」。
+  絕對不能因此描述成使用者已經去過。
+
+- places.visited：
+  使用者已標記為「去過」。
+
+- places.revisit：
+  使用者已經去過，而且標記為「想再去」。
+  因此詢問「去過哪些地方」時，visited 和 revisit 都可以視為有去過。
+
+- 如果使用者詢問「去過哪些地方」：
+  只能根據 visited 和 revisit 回答。
+  不可以把 wantToGo 當成去過。
+
+- 如果 visited 和 revisit 都是空陣列：
+  只能說目前 Places 中沒有被標記為去過的地方。
+  不代表使用者現實生活中從來沒有去過任何地方。
+
+- 如果使用者詢問「想去哪些地方」：
+  只根據 wantToGo 回答。
+  不要把 visited 自動算成想去。
 ${JSON.stringify(context, null, 2)}
 </app_context>
 `.trim();

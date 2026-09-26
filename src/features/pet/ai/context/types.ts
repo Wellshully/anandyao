@@ -37,10 +37,14 @@ export type PetDateContextItem = {
   participants: string[];
   days: PetDateDayContext[];
 };
-
 export type PetPlacesContext = {
   total: number;
-  items: PetPlaceContextItem[];
+
+  wantToGo: PetPlaceContextItem[];
+
+  visited: PetPlaceContextItem[];
+
+  revisit: PetPlaceContextItem[];
 };
 export type PetDatesContext = {
   currentDate: string;

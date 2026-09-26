@@ -49,6 +49,11 @@ export async function getPetPlacesContext(): Promise<PetPlacesContext> {
 
   return {
     total: items.length,
-    items,
+
+    wantToGo: items.filter((place) => place.status === "want_to_go"),
+
+    visited: items.filter((place) => place.status === "visited"),
+
+    revisit: items.filter((place) => place.status === "revisit"),
   };
 }
