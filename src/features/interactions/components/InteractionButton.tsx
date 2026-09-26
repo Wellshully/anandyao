@@ -23,12 +23,6 @@ export default function InteractionButton({
 
   const [isPending, startTransition] = useTransition();
 
-  /*
-   * Local countdown is only UX.
-   *
-   * The real one-minute limit is still
-   * enforced by the database/server action.
-   */
   useEffect(() => {
     if (cooldownSeconds <= 0) {
       return;
@@ -42,6 +36,7 @@ export default function InteractionButton({
       window.clearTimeout(timer);
     };
   }, [cooldownSeconds]);
+
   function send() {
     if (isPending || cooldownSeconds > 0) {
       return;
@@ -76,16 +71,8 @@ export default function InteractionButton({
 
   const disabled = isPending || cooldownSeconds > 0;
 
-  let label = actionName;
-
-  if (isPending) {
-    label = "傳送中…";
-  } else if (cooldownSeconds > 0) {
-    label = `${actionName} · ${cooldownSeconds}s`;
-  }
-
   return (
-    <div className="relative">
+    <div className="relative shrink-0">
       <button
         type="button"
         disabled={disabled}
@@ -93,28 +80,56 @@ export default function InteractionButton({
         title={
           cooldownSeconds > 0 ? `${cooldownSeconds} 秒後可以再傳送` : actionName
         }
+        aria-label={
+          cooldownSeconds > 0
+            ? `${cooldownSeconds} 秒後可以再${actionName}`
+            : actionName
+        }
         className="
-          max-w-24
-          sm:max-w-32
-          truncate
-          rounded-xl
+          flex
+          h-9
+          w-9
+          shrink-0
+          items-center
+          justify-center
+          rounded-full
           border
           border-[var(--border)]
           bg-[var(--surface)]
-          px-2
-          sm:px-3
-          py-2
           text-xs
           font-medium
+          tabular-nums
           transition
 
           hover:border-[var(--foreground)]
 
           disabled:cursor-default
-          disabled:opacity-50
+          disabled:opacity-60
         "
       >
-        {label}
+        {isPending ? (
+          <span aria-hidden="true" className="text-sm">
+            …
+          </span>
+        ) : cooldownSeconds > 0 ? (
+          <span>{cooldownSeconds}</span>
+        ) : (
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            className="h-4.5 w-4.5"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M9.5 11V5.5a1.5 1.5 0 0 1 3 0V10" />
+            <path d="M12.5 10V4.5a1.5 1.5 0 0 1 3 0V10" />
+            <path d="M15.5 10V6a1.5 1.5 0 0 1 3 0v7" />
+            <path d="M9.5 10.5 8 9a1.6 1.6 0 0 0-2.3 2.2l4.1 5.2A5.5 5.5 0 0 0 14.1 18H15a3.5 3.5 0 0 0 3.5-3.5V13" />
+          </svg>
+        )}
       </button>
 
       {message && (
