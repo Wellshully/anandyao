@@ -4,6 +4,7 @@ import { AI_CONFIG } from "@/lib/ai/config";
 import { generateStructured } from "@/lib/ai/generate-structured";
 
 import { buildPetContext } from "@/features/pet/ai/build-pet-context";
+import { buildAppContext } from "@/features/pet/ai/context/build-app-context";
 import {
   trimPetConversation,
   type PetConversationMessage,
@@ -40,9 +41,10 @@ export async function talkToPet(
     ...recentConversation.slice(-4).map((item) => item.content),
     normalized,
   ].join("\n");
-
-  const context = await buildPetContext(memoryQuery);
-
+  const [petContext, appContext] = await Promise.all([
+    buildPetContext(memoryQuery),
+    buildAppContext({ message: normalized }),
+  ]);
   const conversationText =
     recentConversation.length > 0
       ? recentConversation
@@ -55,14 +57,23 @@ export async function talkToPet(
       : "目前還沒有前面的對話。";
 
   const prompt = `
-以下是你目前知道的真實資料：
+以下是你目前知道的身份、狀態與長期記憶：
 
-${context}
+${petContext}
+
+${
+  appContext
+    ? `
+以下是網站中與這次問題相關的真實資料：
+
+${appContext}
+`
+    : ""
+}
 
 以下是你和這位主人最近的對話：
 
 ${conversationText}
-
 現在主人對你說：
 
 ${normalized}
@@ -117,6 +128,7 @@ importance 3 必須非常保守。
 - 你自己產生的推測
 - 你自己說過的內容
 - 無法從主人訊息合理確認的資訊
+- 僅僅因為網站資料中存在的資訊
 
 memory.content 必須：
 - 使用簡短、獨立、未來仍看得懂的陳述句

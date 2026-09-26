@@ -1,0 +1,1611 @@
+===== FEATURE FILES =====
+src/features/dates/actions.ts
+src/features/dates/cancel-date-action.ts
+src/features/dates/components/AddItineraryForm.tsx
+src/features/dates/components/CancelDateButton.tsx
+src/features/dates/components/CreateDateForm.tsx
+src/features/dates/components/DateCard.tsx
+src/features/dates/components/DateDaySection.tsx
+src/features/dates/components/DateOverviewCard.tsx
+src/features/dates/components/DatePlanner.tsx
+src/features/dates/components/DeleteArchivedDateButton.tsx
+src/features/dates/components/InvitationActions.tsx
+src/features/dates/components/ItineraryActions.tsx
+src/features/dates/components/ItineraryCard.tsx
+src/features/dates/components/ReadonlyItineraryList.tsx
+src/features/dates/components/SortableItineraryList.tsx
+src/features/dates/delete-archived-date-action.ts
+src/features/dates/lib/add-itinerary-item.ts
+src/features/dates/lib/calculate-itinerary-schedule.ts
+src/features/dates/lib/cancel-date.ts
+src/features/dates/lib/create-date.ts
+src/features/dates/lib/date-recap-window.ts
+src/features/dates/lib/delete-archived-date.ts
+src/features/dates/lib/delete-itinerary-item.ts
+src/features/dates/lib/get-dates.ts
+src/features/dates/lib/get-date.ts
+src/features/dates/lib/get-itinerary-time-state.ts
+src/features/dates/lib/get-planner-places.ts
+src/features/dates/lib/reorder-itinerary.ts
+src/features/dates/lib/respond-to-invitation.ts
+src/features/dates/lib/send-date-invite-notification.ts
+src/features/dates/lib/send-date-response-notification.ts
+src/features/dates/recap/actions.ts
+src/features/dates/recap/photo-types.ts
+src/features/dates/recap/types.ts
+src/features/dates/types.ts
+src/features/eat/actions.ts
+src/features/eat/components/AddRestaurantForm.tsx
+src/features/eat/components/EatPicker.tsx
+src/features/eat/components/EditRestaurantForm.tsx
+src/features/eat/components/RecentEats.tsx
+src/features/eat/components/RestaurantActions.tsx
+src/features/eat/components/RestaurantBrowser.tsx
+src/features/eat/components/RestaurantCard.tsx
+src/features/eat/config/restaurant-options.ts
+src/features/eat/lib/add-restaurant.ts
+src/features/eat/lib/delete-restaurant.ts
+src/features/eat/lib/get-recent-restaurant-visits.ts
+src/features/eat/lib/get-restaurants.ts
+src/features/eat/lib/get-restaurant.ts
+src/features/eat/lib/pick-restaurant.ts
+src/features/eat/lib/record-visit.ts
+src/features/eat/lib/search-restaurants.ts
+src/features/eat/lib/set-restaurant-hidden.ts
+src/features/eat/lib/update-restaurant.ts
+src/features/eat/types.ts
+src/features/journal/actions.ts
+src/features/journal/components/JournalForm.tsx
+src/features/journal/components/MarkdownContent.tsx
+src/features/journal/config/journal-status.ts
+src/features/memories/components/MemoryDetail.tsx
+src/features/memories/components/PhotoUploader.tsx
+src/features/memories/lib/optimize-image.ts
+src/features/places/actions.ts
+src/features/places/components/PlaceForm.tsx
+src/features/places/config/place-status.ts
+
+===== DATABASE TABLES =====
+7-  | Json[];
+8-
+9-export type Database = {
+10:  // Allows to automatically instantiate createClient with right options
+11:  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+12-  __InternalSupabase: {
+13-    PostgrestVersion: "14.5";
+14-  };
+15-  public: {
+16-    Tables: {
+17-      date_days: {
+18-        Row: {
+19:          created_at: string;
+20-          date: string;
+21-          date_id: string;
+22-          day_number: number;
+23-          id: string;
+24-          note: string | null;
+25-          planning_start_time: string;
+26-          space_id: string;
+27-          title: string | null;
+28-          updated_at: string;
+29-        };
+30-        Insert: {
+31:          created_at?: string;
+32-          date: string;
+33-          date_id: string;
+34-          day_number: number;
+35-          id?: string;
+36-          note?: string | null;
+37-          planning_start_time?: string;
+38-          space_id: string;
+39-          title?: string | null;
+40-          updated_at?: string;
+41-        };
+42-        Update: {
+43:          created_at?: string;
+44-          date?: string;
+45-          date_id?: string;
+46-          day_number?: number;
+47-          id?: string;
+48-          note?: string | null;
+49-          planning_start_time?: string;
+50-          space_id?: string;
+51-          title?: string | null;
+52-          updated_at?: string;
+53-        };
+54-        Relationships: [
+55-          {
+56-            foreignKeyName: "date_days_date_space_fkey";
+57-            columns: ["date_id", "space_id"];
+58-            isOneToOne: false;
+59-            referencedRelation: "dates";
+60-            referencedColumns: ["id", "space_id"];
+61-          },
+62-        ];
+63-      };
+64-      date_itinerary_items: {
+65-        Row: {
+66-          address: string | null;
+67:          created_at: string;
+68:          created_by: string | null;
+69-          date_day_id: string;
+70-          date_id: string;
+71-          description: string | null;
+72-          duration_minutes: number;
+73-          fixed_start_time: string | null;
+74-          google_maps_url: string | null;
+75-          id: string;
+76-          item_type: string;
+77-          latitude: number | null;
+78-          location_name: string | null;
+79-          longitude: number | null;
+80-          place_id: string | null;
+81-          restaurant_id: string | null;
+82-          sort_order: number;
+83-          space_id: string;
+84-          timing_type: string;
+85-          title: string;
+86-          updated_at: string;
+87-        };
+88-        Insert: {
+89-          address?: string | null;
+90:          created_at?: string;
+91:          created_by?: string | null;
+92-          date_day_id: string;
+93-          date_id: string;
+94-          description?: string | null;
+95-          duration_minutes?: number;
+96-          fixed_start_time?: string | null;
+97-          google_maps_url?: string | null;
+98-          id?: string;
+99-          item_type?: string;
+100-          latitude?: number | null;
+101-          location_name?: string | null;
+102-          longitude?: number | null;
+103-          place_id?: string | null;
+104-          restaurant_id?: string | null;
+105-          sort_order?: number;
+106-          space_id: string;
+107-          timing_type?: string;
+108-          title: string;
+109-          updated_at?: string;
+110-        };
+111-        Update: {
+112-          address?: string | null;
+113:          created_at?: string;
+114:          created_by?: string | null;
+115-          date_day_id?: string;
+116-          date_id?: string;
+117-          description?: string | null;
+118-          duration_minutes?: number;
+119-          fixed_start_time?: string | null;
+120-          google_maps_url?: string | null;
+121-          id?: string;
+122-          item_type?: string;
+123-          latitude?: number | null;
+124-          location_name?: string | null;
+125-          longitude?: number | null;
+126-          place_id?: string | null;
+127-          restaurant_id?: string | null;
+128-          sort_order?: number;
+129-          space_id?: string;
+130-          timing_type?: string;
+131-          title?: string;
+132-          updated_at?: string;
+133-        };
+134-        Relationships: [
+135-          {
+136-            foreignKeyName: "date_itinerary_items_place_id_fkey";
+137-            columns: ["place_id"];
+138-            isOneToOne: false;
+139-            referencedRelation: "places";
+140-            referencedColumns: ["id"];
+141-          },
+142-          {
+143-            foreignKeyName: "date_itinerary_items_restaurant_id_fkey";
+144-            columns: ["restaurant_id"];
+145-            isOneToOne: false;
+146-            referencedRelation: "restaurants";
+147-            referencedColumns: ["id"];
+148-          },
+149-          {
+150-            foreignKeyName: "itinerary_day_date_space_fkey";
+151-            columns: ["date_day_id", "date_id", "space_id"];
+152-            isOneToOne: false;
+153-            referencedRelation: "date_days";
+154-            referencedColumns: ["id", "date_id", "space_id"];
+155-          },
+156-        ];
+157-      };
+158-      date_participants: {
+159-        Row: {
+160:          created_at: string;
+161-          date_id: string;
+162-          id: string;
+163-          responded_at: string | null;
+164-          role: string;
+165-          space_id: string;
+166-          status: string;
+167-          user_id: string;
+168-        };
+169-        Insert: {
+170:          created_at?: string;
+171-          date_id: string;
+172-          id?: string;
+173-          responded_at?: string | null;
+174-          role: string;
+175-          space_id: string;
+176-          status?: string;
+177-          user_id: string;
+178-        };
+179-        Update: {
+180:          created_at?: string;
+181-          date_id?: string;
+182-          id?: string;
+183-          responded_at?: string | null;
+184-          role?: string;
+185-          space_id?: string;
+186-          status?: string;
+187-          user_id?: string;
+188-        };
+189-        Relationships: [
+190-          {
+191-            foreignKeyName: "date_participants_date_space_fkey";
+192-            columns: ["date_id", "space_id"];
+193-            isOneToOne: false;
+194-            referencedRelation: "dates";
+195-            referencedColumns: ["id", "space_id"];
+196-          },
+197-        ];
+198-      };
+199-      date_recap_media: {
+200-        Row: {
+201:          created_at: string;
+202-          media_id: string;
+203-          recap_id: string;
+204-          sort_order: number;
+205-        };
+206-        Insert: {
+207:          created_at?: string;
+208-          media_id: string;
+209-          recap_id: string;
+210-          sort_order?: number;
+211-        };
+212-        Update: {
+213:          created_at?: string;
+214-          media_id?: string;
+215-          recap_id?: string;
+216-          sort_order?: number;
+217-        };
+218-        Relationships: [
+219-          {
+220-            foreignKeyName: "date_recap_media_media_id_fkey";
+221-            columns: ["media_id"];
+222-            isOneToOne: false;
+223-            referencedRelation: "media";
+224-            referencedColumns: ["id"];
+225-          },
+226-          {
+227-            foreignKeyName: "date_recap_media_recap_id_fkey";
+228-            columns: ["recap_id"];
+229-            isOneToOne: false;
+230-            referencedRelation: "date_recaps";
+231-            referencedColumns: ["id"];
+232-          },
+233-        ];
+234-      };
+235-      date_recaps: {
+236-        Row: {
+237-          completed_at: string | null;
+238:          created_at: string;
+239:          created_by: string;
+240-          date_id: string;
+241-          favorite_moment: string | null;
+242-          future_note: string | null;
+243-          id: string;
+244-          memory_id: string | null;
+245-          space_id: string;
+246-          status: string;
+247-          updated_at: string;
+248-        };
+249-        Insert: {
+250-          completed_at?: string | null;
+251:          created_at?: string;
+252:          created_by: string;
+253-          date_id: string;
+254-          favorite_moment?: string | null;
+255-          future_note?: string | null;
+256-          id?: string;
+257-          memory_id?: string | null;
+258-          space_id: string;
+259-          status?: string;
+260-          updated_at?: string;
+261-        };
+262-        Update: {
+263-          completed_at?: string | null;
+264:          created_at?: string;
+265:          created_by?: string;
+266-          date_id?: string;
+267-          favorite_moment?: string | null;
+268-          future_note?: string | null;
+269-          id?: string;
+270-          memory_id?: string | null;
+271-          space_id?: string;
+272-          status?: string;
+273-          updated_at?: string;
+274-        };
+275-        Relationships: [
+276-          {
+277:            foreignKeyName: "date_recaps_created_by_fkey";
+278:            columns: ["created_by"];
+279-            isOneToOne: false;
+280-            referencedRelation: "profiles";
+281-            referencedColumns: ["id"];
+282-          },
+283-          {
+284-            foreignKeyName: "date_recaps_date_id_fkey";
+285-            columns: ["date_id"];
+286-            isOneToOne: true;
+287-            referencedRelation: "dates";
+288-            referencedColumns: ["id"];
+289-          },
+290-          {
+291-            foreignKeyName: "date_recaps_memory_id_fkey";
+292-            columns: ["memory_id"];
+293-            isOneToOne: false;
+294-            referencedRelation: "memories";
+295-            referencedColumns: ["id"];
+296-          },
+297-          {
+298-            foreignKeyName: "date_recaps_space_id_fkey";
+299-            columns: ["space_id"];
+300-            isOneToOne: false;
+301-            referencedRelation: "spaces";
+302-            referencedColumns: ["id"];
+303-          },
+304-        ];
+305-      };
+306:      dates: {
+307-        Row: {
+308:          created_at: string;
+309-          description: string | null;
+310-          end_date: string;
+311-          id: string;
+312-          kind: string;
+313-          organizer_id: string;
+314-          space_id: string;
+315-          start_date: string;
+316-          status: string;
+317-          title: string;
+318-          updated_at: string;
+319-        };
+320-        Insert: {
+321:          created_at?: string;
+322-          description?: string | null;
+323-          end_date: string;
+324-          id?: string;
+325-          kind?: string;
+326-          organizer_id: string;
+327-          space_id: string;
+328-          start_date: string;
+329-          status?: string;
+330-          title: string;
+331-          updated_at?: string;
+332-        };
+333-        Update: {
+334:          created_at?: string;
+335-          description?: string | null;
+336-          end_date?: string;
+337-          id?: string;
+338-          kind?: string;
+339-          organizer_id?: string;
+340-          space_id?: string;
+341-          start_date?: string;
+342-          status?: string;
+343-          title?: string;
+344-          updated_at?: string;
+345-        };
+346-        Relationships: [
+347-          {
+348-            foreignKeyName: "dates_space_id_fkey";
+349-            columns: ["space_id"];
+350-            isOneToOne: false;
+351-            referencedRelation: "spaces";
+352-            referencedColumns: ["id"];
+353-          },
+354-        ];
+355-      };
+356-      events: {
+357-        Row: {
+358-          all_day: boolean;
+359:          created_at: string;
+360:          created_by: string | null;
+361-          ends_at: string | null;
+362-          id: string;
+363-          location: string | null;
+364-          note: string | null;
+365-          space_id: string;
+366-          starts_at: string;
+367-          title: string;
+368-          updated_at: string;
+369-        };
+370-        Insert: {
+371-          all_day?: boolean;
+372:          created_at?: string;
+373:          created_by?: string | null;
+374-          ends_at?: string | null;
+375-          id?: string;
+376-          location?: string | null;
+377-          note?: string | null;
+378-          space_id: string;
+379-          starts_at: string;
+380-          title: string;
+381-          updated_at?: string;
+382-        };
+383-        Update: {
+384-          all_day?: boolean;
+385:          created_at?: string;
+386:          created_by?: string | null;
+387-          ends_at?: string | null;
+388-          id?: string;
+389-          location?: string | null;
+390-          note?: string | null;
+391-          space_id?: string;
+392-          starts_at?: string;
+393-          title?: string;
+394-          updated_at?: string;
+395-        };
+396-        Relationships: [
+397-          {
+398-            foreignKeyName: "events_space_id_fkey";
+399-            columns: ["space_id"];
+400-            isOneToOne: false;
+401-            referencedRelation: "spaces";
+402-            referencedColumns: ["id"];
+403-          },
+404-        ];
+405-      };
+406-      interaction_settings: {
+407-        Row: {
+408-          action_name: string;
+409-          last_sent_at: string | null;
+410-          updated_at: string;
+411-          user_id: string;
+412-        };
+413-        Insert: {
+414-          action_name?: string;
+415-          last_sent_at?: string | null;
+416-          updated_at?: string;
+417-          user_id: string;
+418-        };
+419-        Update: {
+420-          action_name?: string;
+421-          last_sent_at?: string | null;
+422-          updated_at?: string;
+423-          user_id?: string;
+424-        };
+425-        Relationships: [
+426-          {
+427-            foreignKeyName: "interaction_settings_user_id_fkey";
+428-            columns: ["user_id"];
+429-            isOneToOne: true;
+430-            referencedRelation: "profiles";
+431-            referencedColumns: ["id"];
+432-          },
+433-        ];
+434-      };
+435:      journal_entries: {
+436-        Row: {
+437-          author_id: string | null;
+438-          content: string;
+439:          created_at: string;
+440-          entry_date: string;
+441-          id: string;
+442-          published_at: string | null;
+443-          space_id: string;
+444-          status: string;
+445-          title: string;
+446-          updated_at: string;
+447-        };
+448-        Insert: {
+449-          author_id?: string | null;
+450-          content: string;
+451:          created_at?: string;
+452-          entry_date: string;
+453-          id?: string;
+454-          published_at?: string | null;
+455-          space_id: string;
+456-          status?: string;
+457-          title: string;
+458-          updated_at?: string;
+459-        };
+460-        Update: {
+461-          author_id?: string | null;
+462-          content?: string;
+463:          created_at?: string;
+464-          entry_date?: string;
+465-          id?: string;
+466-          published_at?: string | null;
+467-          space_id?: string;
+468-          status?: string;
+469-          title?: string;
+470-          updated_at?: string;
+471-        };
+472-        Relationships: [
+473-          {
+474:            foreignKeyName: "journal_entries_space_id_fkey";
+475-            columns: ["space_id"];
+476-            isOneToOne: false;
+477-            referencedRelation: "spaces";
+478-            referencedColumns: ["id"];
+479-          },
+480-        ];
+481-      };
+482-      media: {
+483-        Row: {
+484-          alt_text: string | null;
+485:          created_at: string;
+486-          file_name: string;
+487-          file_size: number | null;
+488-          height: number | null;
+489-          id: string;
+490-          mime_type: string | null;
+491-          space_id: string;
+492-          storage_path: string;
+493-          uploaded_by: string | null;
+494-          width: number | null;
+495-        };
+496-        Insert: {
+497-          alt_text?: string | null;
+498:          created_at?: string;
+499-          file_name: string;
+500-          file_size?: number | null;
+501-          height?: number | null;
+502-          id?: string;
+503-          mime_type?: string | null;
+504-          space_id: string;
+505-          storage_path: string;
+506-          uploaded_by?: string | null;
+507-          width?: number | null;
+508-        };
+509-        Update: {
+510-          alt_text?: string | null;
+511:          created_at?: string;
+512-          file_name?: string;
+513-          file_size?: number | null;
+514-          height?: number | null;
+515-          id?: string;
+516-          mime_type?: string | null;
+517-          space_id?: string;
+518-          storage_path?: string;
+519-          uploaded_by?: string | null;
+520-          width?: number | null;
+521-        };
+522-        Relationships: [
+523-          {
+524-            foreignKeyName: "media_space_id_fkey";
+525-            columns: ["space_id"];
+526-            isOneToOne: false;
+527-            referencedRelation: "spaces";
+528-            referencedColumns: ["id"];
+529-          },
+530-        ];
+531-      };
+532:      memories: {
+533-        Row: {
+534-          body: string | null;
+535:          created_at: string;
+536:          created_by: string | null;
+537-          id: string;
+538-          location_name: string | null;
+539-          memory_date: string;
+540-          space_id: string;
+541-          title: string;
+542-          updated_at: string;
+543-        };
+544-        Insert: {
+545-          body?: string | null;
+546:          created_at?: string;
+547:          created_by?: string | null;
+548-          id?: string;
+549-          location_name?: string | null;
+550-          memory_date: string;
+551-          space_id: string;
+552-          title: string;
+553-          updated_at?: string;
+554-        };
+555-        Update: {
+556-          body?: string | null;
+557:          created_at?: string;
+558:          created_by?: string | null;
+559-          id?: string;
+560-          location_name?: string | null;
+561-          memory_date?: string;
+562-          space_id?: string;
+563-          title?: string;
+564-          updated_at?: string;
+565-        };
+566-        Relationships: [
+567-          {
+568-            foreignKeyName: "memories_space_id_fkey";
+569-            columns: ["space_id"];
+570-            isOneToOne: false;
+571-            referencedRelation: "spaces";
+572-            referencedColumns: ["id"];
+573-          },
+574-        ];
+575-      };
+576-      memory_media: {
+577-        Row: {
+578-          caption: string | null;
+579:          created_at: string;
+580-          media_id: string;
+581-          memory_id: string;
+582-          sort_order: number;
+583-        };
+584-        Insert: {
+585-          caption?: string | null;
+586:          created_at?: string;
+587-          media_id: string;
+588-          memory_id: string;
+589-          sort_order?: number;
+590-        };
+591-        Update: {
+592-          caption?: string | null;
+593:          created_at?: string;
+594-          media_id?: string;
+595-          memory_id?: string;
+596-          sort_order?: number;
+597-        };
+598-        Relationships: [
+599-          {
+600-            foreignKeyName: "memory_media_media_id_fkey";
+601-            columns: ["media_id"];
+602-            isOneToOne: false;
+603-            referencedRelation: "media";
+604-            referencedColumns: ["id"];
+605-          },
+606-          {
+607-            foreignKeyName: "memory_media_memory_id_fkey";
+608-            columns: ["memory_id"];
+609-            isOneToOne: false;
+610-            referencedRelation: "memories";
+611-            referencedColumns: ["id"];
+612-          },
+613-        ];
+614-      };
+615-      notification_deliveries: {
+616-        Row: {
+617:          created_at: string;
+618-          id: string;
+619-          notification_key: string;
+620-          notification_type: string;
+621-          sent_at: string;
+622-          source_id: string | null;
+623-          user_id: string;
+624-        };
+625-        Insert: {
+626:          created_at?: string;
+627-          id?: string;
+628-          notification_key: string;
+629-          notification_type: string;
+630-          sent_at?: string;
+631-          source_id?: string | null;
+632-          user_id: string;
+633-        };
+634-        Update: {
+635:          created_at?: string;
+636-          id?: string;
+637-          notification_key?: string;
+638-          notification_type?: string;
+639-          sent_at?: string;
+640-          source_id?: string | null;
+641-          user_id?: string;
+642-        };
+643-        Relationships: [
+644-          {
+645-            foreignKeyName: "notification_deliveries_user_id_fkey";
+646-            columns: ["user_id"];
+647-            isOneToOne: false;
+648-            referencedRelation: "profiles";
+649-            referencedColumns: ["id"];
+650-          },
+651-        ];
+652-      };
+653-      personal_plans: {
+654-        Row: {
+655-          completed_at: string | null;
+656:          created_at: string;
+657-          duration_minutes: number;
+658-          id: string;
+659-          note: string | null;
+660-          plan_date: string;
+661-          space_id: string;
+662-          start_time: string | null;
+663-          title: string;
+664-          updated_at: string;
+665-          user_id: string;
+666-        };
+667-        Insert: {
+668-          completed_at?: string | null;
+669:          created_at?: string;
+670-          duration_minutes?: number;
+671-          id?: string;
+672-          note?: string | null;
+673-          plan_date: string;
+674-          space_id: string;
+675-          start_time?: string | null;
+676-          title: string;
+677-          updated_at?: string;
+678-          user_id: string;
+679-        };
+680-        Update: {
+681-          completed_at?: string | null;
+682:          created_at?: string;
+683-          duration_minutes?: number;
+684-          id?: string;
+685-          note?: string | null;
+686-          plan_date?: string;
+687-          space_id?: string;
+688-          start_time?: string | null;
+689-          title?: string;
+690-          updated_at?: string;
+691-          user_id?: string;
+692-        };
+693-        Relationships: [
+694-          {
+695-            foreignKeyName: "personal_plans_space_id_fkey";
+696-            columns: ["space_id"];
+697-            isOneToOne: false;
+698-            referencedRelation: "spaces";
+699-            referencedColumns: ["id"];
+700-          },
+701-        ];
+702-      };
+703-      pet_events: {
+704-        Row: {
+705:          created_at: string;
+706-          event_type: string;
+707-          id: string;
+708-          metadata: Json;
+709-          pet_id: string;
+710-          user_id: string;
+711-        };
+712-        Insert: {
+713:          created_at?: string;
+714-          event_type: string;
+715-          id?: string;
+716-          metadata?: Json;
+717-          pet_id: string;
+718-          user_id: string;
+719-        };
+720-        Update: {
+721:          created_at?: string;
+722-          event_type?: string;
+723-          id?: string;
+724-          metadata?: Json;
+725-          pet_id?: string;
+726-          user_id?: string;
+727-        };
+728-        Relationships: [
+729-          {
+730-            foreignKeyName: "pet_events_pet_id_fkey";
+731-            columns: ["pet_id"];
+732-            isOneToOne: false;
+733-            referencedRelation: "pets";
+734-            referencedColumns: ["id"];
+735-          },
+736-          {
+737-            foreignKeyName: "pet_events_user_id_fkey";
+738-            columns: ["user_id"];
+739-            isOneToOne: false;
+740-            referencedRelation: "profiles";
+741-            referencedColumns: ["id"];
+742-          },
+743-        ];
+744-      };
+745:      pet_memories: {
+746-        Row: {
+747-          content: string;
+748:          created_at: string;
+749:          created_by: string;
+750-          expires_at: string | null;
+751-          id: string;
+752-          importance: number;
+753-          last_recalled_at: string | null;
+754-          memory_type: string;
+755-          pet_id: string;
+756-          recall_count: number;
+757-          subject_user_id: string | null;
+758-          updated_at: string;
+759-        };
+760-        Insert: {
+761-          content: string;
+762:          created_at?: string;
+763:          created_by: string;
+764-          expires_at?: string | null;
+765-          id?: string;
+766-          importance: number;
+767-          last_recalled_at?: string | null;
+768-          memory_type: string;
+769-          pet_id: string;
+770-          recall_count?: number;
+771-          subject_user_id?: string | null;
+772-          updated_at?: string;
+773-        };
+774-        Update: {
+775-          content?: string;
+776:          created_at?: string;
+777:          created_by?: string;
+778-          expires_at?: string | null;
+779-          id?: string;
+780-          importance?: number;
+781-          last_recalled_at?: string | null;
+782-          memory_type?: string;
+783-          pet_id?: string;
+784-          recall_count?: number;
+785-          subject_user_id?: string | null;
+786-          updated_at?: string;
+787-        };
+788-        Relationships: [
+789-          {
+790:            foreignKeyName: "pet_memories_created_by_fkey";
+791:            columns: ["created_by"];
+792-            isOneToOne: false;
+793-            referencedRelation: "profiles";
+794-            referencedColumns: ["id"];
+795-          },
+796-          {
+797-            foreignKeyName: "pet_memories_pet_id_fkey";
+798-            columns: ["pet_id"];
+799-            isOneToOne: false;
+800-            referencedRelation: "pets";
+801-            referencedColumns: ["id"];
+802-          },
+803-          {
+804-            foreignKeyName: "pet_memories_subject_user_id_fkey";
+805-            columns: ["subject_user_id"];
+806-            isOneToOne: false;
+807-            referencedRelation: "profiles";
+808-            referencedColumns: ["id"];
+809-          },
+810-        ];
+811-      };
+812-      pets: {
+813-        Row: {
+814:          created_at: string;
+815-          energy: number;
+816-          happiness: number;
+817-          hunger: number;
+818-          id: string;
+819-          name: string;
+820-          space_id: string;
+821-          state_calculated_at: string;
+822-          updated_at: string;
+823-          xp: number;
+824-        };
+825-        Insert: {
+826:          created_at?: string;
+827-          energy?: number;
+828-          happiness?: number;
+829-          hunger?: number;
+830-          id?: string;
+831-          name?: string;
+832-          space_id: string;
+833-          state_calculated_at?: string;
+834-          updated_at?: string;
+835-          xp?: number;
+836-        };
+837-        Update: {
+838:          created_at?: string;
+839-          energy?: number;
+840-          happiness?: number;
+841-          hunger?: number;
+842-          id?: string;
+843-          name?: string;
+844-          space_id?: string;
+845-          state_calculated_at?: string;
+846-          updated_at?: string;
+847-          xp?: number;
+848-        };
+849-        Relationships: [
+850-          {
+851-            foreignKeyName: "pets_space_id_fkey";
+852-            columns: ["space_id"];
+853-            isOneToOne: true;
+854-            referencedRelation: "spaces";
+855-            referencedColumns: ["id"];
+856-          },
+857-        ];
+858-      };
+859:      places: {
+860-        Row: {
+861-          address: string | null;
+862:          created_at: string;
+863:          created_by: string | null;
+864-          id: string;
+865-          latitude: number | null;
+866-          longitude: number | null;
+867-          name: string;
+868-          note: string | null;
+869-          space_id: string;
+870-          status: string;
+871-          updated_at: string;
+872-          visited_on: string | null;
+873-        };
+874-        Insert: {
+875-          address?: string | null;
+876:          created_at?: string;
+877:          created_by?: string | null;
+878-          id?: string;
+879-          latitude?: number | null;
+880-          longitude?: number | null;
+881-          name: string;
+882-          note?: string | null;
+883-          space_id: string;
+884-          status?: string;
+885-          updated_at?: string;
+886-          visited_on?: string | null;
+887-        };
+888-        Update: {
+889-          address?: string | null;
+890:          created_at?: string;
+891:          created_by?: string | null;
+892-          id?: string;
+893-          latitude?: number | null;
+894-          longitude?: number | null;
+895-          name?: string;
+896-          note?: string | null;
+897-          space_id?: string;
+898-          status?: string;
+899-          updated_at?: string;
+900-          visited_on?: string | null;
+901-        };
+902-        Relationships: [
+903-          {
+904-            foreignKeyName: "places_space_id_fkey";
+905-            columns: ["space_id"];
+906-            isOneToOne: false;
+907-            referencedRelation: "spaces";
+908-            referencedColumns: ["id"];
+909-          },
+910-        ];
+911-      };
+912-      profiles: {
+913-        Row: {
+914-          avatar_path: string | null;
+915:          created_at: string;
+916-          display_name: string;
+917-          id: string;
+918-          updated_at: string;
+919-        };
+920-        Insert: {
+921-          avatar_path?: string | null;
+922:          created_at?: string;
+923-          display_name: string;
+924-          id: string;
+925-          updated_at?: string;
+926-        };
+927-        Update: {
+928-          avatar_path?: string | null;
+929:          created_at?: string;
+930-          display_name?: string;
+931-          id?: string;
+932-          updated_at?: string;
+933-        };
+934-        Relationships: [];
+935-      };
+936-      push_subscriptions: {
+937-        Row: {
+938-          auth_key: string;
+939:          created_at: string;
+940-          endpoint: string;
+941-          id: string;
+942-          p256dh: string;
+943-          updated_at: string;
+944-          user_agent: string | null;
+945-          user_id: string;
+946-        };
+947-        Insert: {
+948-          auth_key: string;
+949:          created_at?: string;
+950-          endpoint: string;
+951-          id?: string;
+952-          p256dh: string;
+953-          updated_at?: string;
+954-          user_agent?: string | null;
+955-          user_id: string;
+956-        };
+957-        Update: {
+958-          auth_key?: string;
+959:          created_at?: string;
+960-          endpoint?: string;
+961-          id?: string;
+962-          p256dh?: string;
+963-          updated_at?: string;
+964-          user_agent?: string | null;
+965-          user_id?: string;
+966-        };
+967-        Relationships: [
+968-          {
+969-            foreignKeyName: "push_subscriptions_user_id_fkey";
+970-            columns: ["user_id"];
+971-            isOneToOne: false;
+972-            referencedRelation: "profiles";
+973-            referencedColumns: ["id"];
+974-          },
+975-        ];
+976-      };
+977-      restaurant_visits: {
+978-        Row: {
+979:          created_at: string;
+980:          created_by: string | null;
+981-          id: string;
+982-          note: string | null;
+983-          restaurant_id: string;
+984-          selected_by_picker: boolean;
+985-          space_id: string;
+986-          visited_at: string;
+987-        };
+988-        Insert: {
+989:          created_at?: string;
+990:          created_by?: string | null;
+991-          id?: string;
+992-          note?: string | null;
+993-          restaurant_id: string;
+994-          selected_by_picker?: boolean;
+995-          space_id: string;
+996-          visited_at?: string;
+997-        };
+998-        Update: {
+999:          created_at?: string;
+1000:          created_by?: string | null;
+1001-          id?: string;
+1002-          note?: string | null;
+1003-          restaurant_id?: string;
+1004-          selected_by_picker?: boolean;
+1005-          space_id?: string;
+1006-          visited_at?: string;
+1007-        };
+1008-        Relationships: [
+1009-          {
+1010-            foreignKeyName: "restaurant_visits_restaurant_space_fkey";
+1011-            columns: ["restaurant_id", "space_id"];
+1012-            isOneToOne: false;
+1013-            referencedRelation: "restaurants";
+1014-            referencedColumns: ["id", "space_id"];
+1015-          },
+1016-          {
+1017-            foreignKeyName: "restaurant_visits_space_id_fkey";
+1018-            columns: ["space_id"];
+1019-            isOneToOne: false;
+1020-            referencedRelation: "spaces";
+1021-            referencedColumns: ["id"];
+1022-          },
+1023-        ];
+1024-      };
+1025-      restaurants: {
+1026-        Row: {
+1027-          address: string | null;
+1028-          area: string | null;
+1029-          contexts: string[];
+1030:          created_at: string;
+1031:          created_by: string | null;
+1032-          cuisines: string[];
+1033-          google_maps_url: string | null;
+1034-          google_place_id: string | null;
+1035-          id: string;
+1036-          is_hidden: boolean;
+1037-          latitude: number | null;
+1038-          longitude: number | null;
+1039-          name: string;
+1040-          note: string | null;
+1041-          price_level: number | null;
+1042-          source: string;
+1043-          source_key: string | null;
+1044-          space_id: string;
+1045-          updated_at: string;
+1046-        };
+1047-        Insert: {
+1048-          address?: string | null;
+1049-          area?: string | null;
+1050-          contexts?: string[];
+1051:          created_at?: string;
+1052:          created_by?: string | null;
+1053-          cuisines?: string[];
+1054-          google_maps_url?: string | null;
+1055-          google_place_id?: string | null;
+1056-          id?: string;
+1057-          is_hidden?: boolean;
+1058-          latitude?: number | null;
+1059-          longitude?: number | null;
+1060-          name: string;
+1061-          note?: string | null;
+1062-          price_level?: number | null;
+1063-          source?: string;
+1064-          source_key?: string | null;
+1065-          space_id: string;
+1066-          updated_at?: string;
+1067-        };
+1068-        Update: {
+1069-          address?: string | null;
+1070-          area?: string | null;
+1071-          contexts?: string[];
+1072:          created_at?: string;
+1073:          created_by?: string | null;
+1074-          cuisines?: string[];
+1075-          google_maps_url?: string | null;
+1076-          google_place_id?: string | null;
+1077-          id?: string;
+1078-          is_hidden?: boolean;
+1079-          latitude?: number | null;
+1080-          longitude?: number | null;
+1081-          name?: string;
+1082-          note?: string | null;
+1083-          price_level?: number | null;
+1084-          source?: string;
+1085-          source_key?: string | null;
+1086-          space_id?: string;
+1087-          updated_at?: string;
+1088-        };
+1089-        Relationships: [
+1090-          {
+1091-            foreignKeyName: "restaurants_space_id_fkey";
+1092-            columns: ["space_id"];
+1093-            isOneToOne: false;
+1094-            referencedRelation: "spaces";
+1095-            referencedColumns: ["id"];
+1096-          },
+1097-        ];
+1098-      };
+1099-      space_members: {
+1100-        Row: {
+1101-          joined_at: string;
+1102-          role: string;
+1103-          space_id: string;
+1104-          user_id: string;
+1105-        };
+1106-        Insert: {
+1107-          joined_at?: string;
+1108-          role?: string;
+1109-          space_id: string;
+1110-          user_id: string;
+1111-        };
+1112-        Update: {
+1113-          joined_at?: string;
+1114-          role?: string;
+1115-          space_id?: string;
+1116-          user_id?: string;
+1117-        };
+1118-        Relationships: [
+1119-          {
+1120-            foreignKeyName: "space_members_space_id_fkey";
+1121-            columns: ["space_id"];
+1122-            isOneToOne: false;
+1123-            referencedRelation: "spaces";
+1124-            referencedColumns: ["id"];
+1125-          },
+1126-        ];
+1127-      };
+1128-      spaces: {
+1129-        Row: {
+1130:          created_at: string;
+1131:          created_by: string | null;
+1132-          id: string;
+1133-          name: string;
+1134-          slug: string;
+1135-          updated_at: string;
+1136-        };
+1137-        Insert: {
+1138:          created_at?: string;
+1139:          created_by?: string | null;
+1140-          id?: string;
+1141-          name: string;
+1142-          slug: string;
+1143-          updated_at?: string;
+1144-        };
+1145-        Update: {
+1146:          created_at?: string;
+1147:          created_by?: string | null;
+1148-          id?: string;
+1149-          name?: string;
+1150-          slug?: string;
+1151-          updated_at?: string;
+1152-        };
+1153-        Relationships: [];
+1154-      };
+1155-      study_announcements: {
+1156-        Row: {
+1157-          cool_announcement_id: number;
+1158-          cool_course_id: number | null;
+1159-          course_name: string | null;
+1160:          created_at: string;
+1161-          html_url: string;
+1162-          id: string;
+1163-          posted_at: string | null;
+1164-          read_state: string;
+1165-          seen_at: string | null;
+1166-          synced_at: string;
+1167-          title: string;
+1168-          user_id: string;
+1169-        };
+1170-        Insert: {
+1171-          cool_announcement_id: number;
+1172-          cool_course_id?: number | null;
+1173-          course_name?: string | null;
+1174:          created_at?: string;
+1175-          html_url: string;
+1176-          id?: string;
+1177-          posted_at?: string | null;
+1178-          read_state: string;
+1179-          seen_at?: string | null;
+1180-          synced_at: string;
+1181-          title: string;
+1182-          user_id: string;
+1183-        };
+1184-        Update: {
+1185-          cool_announcement_id?: number;
+1186-          cool_course_id?: number | null;
+1187-          course_name?: string | null;
+1188:          created_at?: string;
+1189-          html_url?: string;
+1190-          id?: string;
+1191-          posted_at?: string | null;
+1192-          read_state?: string;
+1193-          seen_at?: string | null;
+1194-          synced_at?: string;
+1195-          title?: string;
+1196-          user_id?: string;
+1197-        };
+1198-        Relationships: [
+1199-          {
+1200-            foreignKeyName: "study_announcements_user_id_fkey";
+1201-            columns: ["user_id"];
+1202-            isOneToOne: false;
+1203-            referencedRelation: "profiles";
+1204-            referencedColumns: ["id"];
+1205-          },
+1206-        ];
+1207-      };
+1208-      study_assignments: {
+1209-        Row: {
+1210-          cool_assignment_id: number;
+1211-          cool_course_id: number;
+1212-          course_name: string;
+1213:          created_at: string;
+1214-          due_at: string | null;
+1215-          html_url: string;
+1216-          id: string;
+1217-          late: boolean;
+1218-          missing: boolean;
+1219-          submission_state: string | null;
+1220-          submitted: boolean;
+1221-          submitted_at: string | null;
+1222-          synced_at: string;
+1223-          title: string;
+1224-          user_id: string;
+1225-        };
+1226-        Insert: {
+1227-          cool_assignment_id: number;
+1228-          cool_course_id: number;
+1229-          course_name: string;
+1230:          created_at?: string;
+1231-          due_at?: string | null;
+1232-          html_url: string;
+1233-          id?: string;
+1234-          late?: boolean;
+1235-          missing?: boolean;
+1236-          submission_state?: string | null;
+1237-          submitted?: boolean;
+1238-          submitted_at?: string | null;
+1239-          synced_at: string;
+1240-          title: string;
+1241-          user_id: string;
+1242-        };
+1243-        Update: {
+1244-          cool_assignment_id?: number;
+1245-          cool_course_id?: number;
+1246-          course_name?: string;
+1247:          created_at?: string;
+1248-          due_at?: string | null;
+1249-          html_url?: string;
+1250-          id?: string;
+1251-          late?: boolean;
+1252-          missing?: boolean;
+1253-          submission_state?: string | null;
+1254-          submitted?: boolean;
+1255-          submitted_at?: string | null;
+1256-          synced_at?: string;
+1257-          title?: string;
+1258-          user_id?: string;
+1259-        };
+1260-        Relationships: [
+1261-          {
+1262-            foreignKeyName: "study_assignments_user_id_fkey";
+1263-            columns: ["user_id"];
+1264-            isOneToOne: false;
+1265-            referencedRelation: "profiles";
+1266-            referencedColumns: ["id"];
+1267-          },
+1268-        ];
+1269-      };
+1270-      study_courses: {
+1271-        Row: {
+1272-          cool_course_id: number;
+1273-          course_code: string | null;
+1274:          created_at: string;
+1275-          id: string;
+1276-          name: string;
+1277-          synced_at: string;
+1278-          user_id: string;
+1279-        };
+1280-        Insert: {
+1281-          cool_course_id: number;
+1282-          course_code?: string | null;
+1283:          created_at?: string;
+1284-          id?: string;
+1285-          name: string;
+1286-          synced_at: string;
+1287-          user_id: string;
+1288-        };
+1289-        Update: {
+1290-          cool_course_id?: number;
+1291-          course_code?: string | null;
+1292:          created_at?: string;
+1293-          id?: string;
+1294-          name?: string;
+1295-          synced_at?: string;
+1296-          user_id?: string;
+1297-        };
+1298-        Relationships: [
+1299-          {
+1300-            foreignKeyName: "study_courses_user_id_fkey";
+1301-            columns: ["user_id"];
+1302-            isOneToOne: false;
+1303-            referencedRelation: "profiles";
+1304-            referencedColumns: ["id"];
+1305-          },
+1306-        ];
+1307-      };
+1308-      study_mail_messages: {
+1309-        Row: {
+1310:          created_at: string;
+1311-          from_address: string | null;
+1312-          from_name: string | null;
+1313-          id: string;
+1314-          message_id_header: string | null;
+1315-          seen_at: string | null;
+1316-          sent_at: string | null;
+1317-          subject: string;
+1318-          synced_at: string;
+1319-          uidl: string;
+1320-          updated_at: string;
+1321-          user_id: string;
+1322-        };
+1323-        Insert: {
+1324:          created_at?: string;
+1325-          from_address?: string | null;
+1326-          from_name?: string | null;
+1327-          id?: string;
+1328-          message_id_header?: string | null;
+1329-          seen_at?: string | null;
+1330-          sent_at?: string | null;
+1331-          subject?: string;
+1332-          synced_at?: string;
+1333-          uidl: string;
+1334-          updated_at?: string;
+1335-          user_id: string;
+1336-        };
+1337-        Update: {
+1338:          created_at?: string;
+1339-          from_address?: string | null;
+1340-          from_name?: string | null;
+1341-          id?: string;
+1342-          message_id_header?: string | null;
+1343-          seen_at?: string | null;
+1344-          sent_at?: string | null;
+1345-          subject?: string;
+1346-          synced_at?: string;
+1347-          uidl?: string;
+1348-          updated_at?: string;
+1349-          user_id?: string;
+1350-        };
+1351-        Relationships: [
+1352-          {
+1353-            foreignKeyName: "study_mail_messages_user_id_fkey";
+1354-            columns: ["user_id"];
+1355-            isOneToOne: false;
+1356-            referencedRelation: "profiles";
+1357-            referencedColumns: ["id"];
+1358-          },
+1359-        ];
+1360-      };
+1361-      study_sync_runs: {
+1362-        Row: {
+1363-          announcements_count: number;
+1364-          assignments_count: number;
+1365-          courses_count: number;
+1366-          error_message: string | null;
+1367-          finished_at: string | null;
+1368-          id: string;
+1369-          provider: string;
+1370-          started_at: string;
+1371-          status: string;
+1372-          trigger_source: string;
+1373-          user_id: string;
+1374-        };
+1375-        Insert: {
+1376-          announcements_count?: number;
+1377-          assignments_count?: number;
+1378-          courses_count?: number;
+1379-          error_message?: string | null;
+1380-          finished_at?: string | null;
+1381-          id?: string;
+1382-          provider?: string;
+1383-          started_at?: string;
+1384-          status: string;
+1385-          trigger_source: string;
+1386-          user_id: string;
+1387-        };
+1388-        Update: {
+1389-          announcements_count?: number;
+1390-          assignments_count?: number;
+1391-          courses_count?: number;
+1392-          error_message?: string | null;
+1393-          finished_at?: string | null;
+1394-          id?: string;
+1395-          provider?: string;
+1396-          started_at?: string;
+1397-          status?: string;
+1398-          trigger_source?: string;
+1399-          user_id?: string;
+1400-        };
+1401-        Relationships: [
+1402-          {
+1403-            foreignKeyName: "study_sync_runs_user_id_fkey";
+1404-            columns: ["user_id"];
+1405-            isOneToOne: false;
+1406-            referencedRelation: "profiles";
+1407-            referencedColumns: ["id"];
+1408-          },
+1409-        ];
+1410-      };
+1411-      study_sync_state: {
+1412-        Row: {
+1413-          last_synced_at: string;
+1414-          user_id: string;
+1415-        };
+1416-        Insert: {
+1417-          last_synced_at: string;
+1418-          user_id: string;
+1419-        };
+1420-        Update: {
+1421-          last_synced_at?: string;
+1422-          user_id?: string;
+1423-        };
+1424-        Relationships: [
+1425-          {
+1426-            foreignKeyName: "study_sync_state_user_id_fkey";
+1427-            columns: ["user_id"];
+1428-            isOneToOne: true;
+--
+1442-        Returns: string;
+1443-      };
+1444-      complete_date_recap: { Args: { p_date_id: string }; Returns: string };
+1445:      create_date_invitation: {
+1446-        Args: {
+1447-          p_description: string;
+1448-          p_end_date: string;
+1449-          p_invitee_id: string;
+1450-          p_kind: string;
+1451-          p_space_id: string;
+1452-          p_start_date: string;
+1453-          p_title: string;
+1454-        };
+1455-        Returns: string;
+1456-      };
+1457-      delete_archived_date: { Args: { p_date_id: string }; Returns: undefined };
+1458-      get_project_usage: {
+1459-        Args: never;
+1460-        Returns: {
+1461-          database_bytes: number;
+1462-          storage_bytes: number;
+1463-        }[];
+1464-      };
+1465-      reorder_date_itinerary: {
+1466-        Args: { p_date_day_id: string; p_item_ids: string[] };
+1467-        Returns: undefined;
+1468-      };
+1469-      respond_to_date_invitation: {
+1470-        Args: { p_date_id: string; p_response: string };
+1471-        Returns: undefined;
+1472-      };
+1473-    };
+1474-    Enums: {
+1475-      [_ in never]: never;
+1476-    };
+1477-    CompositeTypes: {
+1478-      [_ in never]: never;
+1479-    };
+1480-  };
+1481-};
+1482-
+1483-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">;
+1484-
+1485-type DefaultSchema = DatabaseWithoutInternals[Extract<
+1486-  keyof Database,
+1487-  "public"
+1488->];
+1489-
+1490-export type Tables<
+1491-  DefaultSchemaTableNameOrOptions extends
+1492-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+1493-    | { schema: keyof DatabaseWithoutInternals },
+1494-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+1495-    schema: keyof DatabaseWithoutInternals;
+1496-  }
+1497-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+1498-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+1499-    : never) = never,
+1500-> = DefaultSchemaTableNameOrOptions extends {
+1501-  schema: keyof DatabaseWithoutInternals;
+1502-}
+1503-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+1504-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+1505-      Row: infer R;
+1506-    }
+1507-    ? R
+1508-    : never
+1509-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+1510-        DefaultSchema["Views"])
+1511-    ? (DefaultSchema["Tables"] &
+1512-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+1513-        Row: infer R;
+1514-      }
+1515-      ? R
+1516-      : never
+1517-    : never;
+1518-
+1519-export type TablesInsert<
+1520-  DefaultSchemaTableNameOrOptions extends
+1521-    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
+1522-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+1523-    schema: keyof DatabaseWithoutInternals;
+1524-  }
+1525-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+1526-    : never) = never,
+1527-> = DefaultSchemaTableNameOrOptions extends {
+1528-  schema: keyof DatabaseWithoutInternals;
+1529-}
+1530-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+1531-      Insert: infer I;
+1532-    }
+1533-    ? I
+1534-    : never
+1535-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+
+===== SUPABASE QUERIES =====
+src/features/dates/lib/get-planner-places.ts:13:    .from("places")
+src/features/dates/lib/get-dates.ts:22:    .from("dates")
+src/features/dates/lib/get-date.ts:22:    .from("dates")
+src/features/dates/lib/respond-to-invitation.ts:39:      supabase.from("dates").select("title").eq("id", dateId).single(),
+src/features/dates/lib/add-itinerary-item.ts:148:      .from("places")
+src/features/dates/recap/lib/get-or-create-date-recap.ts:23:    .from("dates")
+src/features/journal/actions.ts:49:    .from("journal_entries")
+src/features/journal/actions.ts:87:    .from("journal_entries")
+src/features/journal/actions.ts:118:    .from("journal_entries")
+src/features/journal/actions.ts:152:    .from("journal_entries")
+src/features/places/actions.ts:49:    .from("places")
+src/features/places/actions.ts:80:    .from("places")
+src/features/places/actions.ts:109:    .from("places")
+src/features/notifications/lib/run-notification-reminders.ts:339:      .from("dates")
+src/features/today/lib/get-today-overview.ts:266:      .from("dates")
+src/app/(main)/journal/page.tsx:15:    .from("journal_entries")
+src/app/(main)/journal/[id]/page.tsx:33:    .from("journal_entries")
+src/app/(main)/memories/page.tsx:12:    .from("memories")
+src/app/(main)/memories/[id]/page.tsx:25:    .from("memories")
+src/app/(main)/memories/[id]/actions.ts:32:    .from("memories")
+src/app/(main)/memories/[id]/actions.ts:85:    .from("memories")
+src/app/(main)/memories/new/actions.ts:29:    .from("memories")
+src/app/(main)/places/page.tsx:13:    .from("places")
+src/app/(main)/places/[id]/page.tsx:27:    .from("places")

@@ -1,0 +1,545 @@
+===== PLACE STATUS =====
+export const PLACE_STATUSES = [
+  {
+    value: "want_to_go",
+    label: "想去",
+  },
+  {
+    value: "visited",
+    label: "去過",
+  },
+  {
+    value: "revisit",
+    label: "想再去",
+  },
+] as const;
+
+export type PlaceStatus = (typeof PLACE_STATUSES)[number]["value"];
+
+export function isPlaceStatus(value: string): value is PlaceStatus {
+  return PLACE_STATUSES.some((status) => status.value === value);
+}
+
+export function getPlaceStatusLabel(value: PlaceStatus) {
+  return (
+    PLACE_STATUSES.find((status) => status.value === value)?.label ?? value
+  );
+}
+
+===== PLACES ACTIONS =====
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+
+import { isPlaceStatus } from "@/features/places/config/place-status";
+import { requireUser } from "@/lib/auth/require-user";
+import { requireSpace } from "@/lib/space/require-space";
+import { createClient } from "@/lib/supabase/server";
+
+function getPlaceFormData(formData: FormData) {
+  const name = String(formData.get("name") ?? "").trim();
+
+  const status = String(formData.get("status") ?? "");
+
+  const address = String(formData.get("address") ?? "").trim();
+
+  const note = String(formData.get("note") ?? "").trim();
+
+  const visitedOn = String(formData.get("visitedOn") ?? "");
+
+  if (!name || !isPlaceStatus(status)) {
+    return null;
+  }
+
+  return {
+    name,
+    status,
+    address: address || null,
+    note: note || null,
+    visited_on: visitedOn || null,
+  };
+}
+
+export async function createPlace(formData: FormData) {
+  await requireUser();
+
+  const space = await requireSpace();
+
+  const values = getPlaceFormData(formData);
+
+  if (!values) {
+    redirect("/places/new?error=invalid");
+  }
+
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("places")
+    .insert({
+      space_id: space.id,
+      ...values,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  redirect(`/places/${data.id}`);
+}
+
+export async function updatePlace(formData: FormData) {
+  await requireUser();
+
+  const space = await requireSpace();
+
+  const placeId = String(formData.get("placeId") ?? "");
+
+  const values = getPlaceFormData(formData);
+
+  if (!placeId || !values) {
+    return;
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("places")
+    .update(values)
+    .eq("id", placeId)
+    .eq("space_id", space.id);
+
+  if (error) {
+    throw error;
+  }
+
+  revalidatePath("/places");
+  revalidatePath(`/places/${placeId}`);
+
+  redirect(`/places/${placeId}`);
+}
+
+export async function deletePlace(formData: FormData) {
+  await requireUser();
+
+  const space = await requireSpace();
+
+  const placeId = String(formData.get("placeId") ?? "");
+
+  if (!placeId) {
+    return;
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("places")
+    .delete()
+    .eq("id", placeId)
+    .eq("space_id", space.id);
+
+  if (error) {
+    throw error;
+  }
+
+  revalidatePath("/places");
+
+  redirect("/places");
+}
+
+===== DATES TYPES =====
+import type { Database } from "@/types/database";
+
+export type SharedDate = Database["public"]["Tables"]["dates"]["Row"];
+
+export type DateParticipant =
+  Database["public"]["Tables"]["date_participants"]["Row"];
+
+export type DateDay = Database["public"]["Tables"]["date_days"]["Row"];
+
+export type DateItineraryItem =
+  Database["public"]["Tables"]["date_itinerary_items"]["Row"];
+
+export type DateKind = "meal" | "date" | "half_day" | "day" | "trip";
+
+export type DateParticipantSummary = {
+  userId: string;
+
+  role: "organizer" | "invitee";
+
+  status: "pending" | "accepted" | "declined";
+
+  displayName: string;
+};
+
+export type DateListItem = {
+  date: SharedDate;
+
+  participants: DateParticipantSummary[];
+
+  currentUserParticipant?: DateParticipantSummary;
+};
+
+export type CreateDateInput = {
+  title: string;
+  description?: string;
+
+  kind: DateKind;
+
+  startDate: string;
+  endDate: string;
+};
+export type ItineraryItemType =
+  | "place"
+  | "restaurant"
+  | "transport"
+  | "hotel"
+  | "activity"
+  | "note";
+
+export type ItineraryTimingType = "flexible" | "fixed";
+
+export type AddItineraryInput = {
+  dateId: string;
+  dateDayId: string;
+
+  itemType: ItineraryItemType;
+
+  title: string;
+  description?: string;
+
+  locationName?: string;
+  address?: string;
+  googleMapsUrl?: string;
+
+  timingType: ItineraryTimingType;
+
+  fixedStartTime?: string;
+
+  durationMinutes: number;
+
+  restaurantId?: string;
+  placeId?: string;
+};
+
+export type DatePlannerDay = {
+  day: DateDay;
+  items: DateItineraryItem[];
+};
+
+export type DateDetails = {
+  date: SharedDate;
+
+  days: DatePlannerDay[];
+
+  participants: DateParticipantSummary[];
+
+  currentUserParticipant?: DateParticipantSummary;
+};
+export type PlannerPlace = Pick<
+  Database["public"]["Tables"]["places"]["Row"],
+  "id" | "name" | "status" | "note" | "address" | "latitude" | "longitude"
+>;
+
+===== GET DATES =====
+import "server-only";
+
+import { createClient } from "@/lib/supabase/server";
+
+import { requireSpace } from "@/lib/space/require-space";
+
+import { requireUser } from "@/lib/auth/require-user";
+
+import type {
+  DateListItem,
+  DateParticipantSummary,
+} from "@/features/dates/types";
+
+export async function getDates(): Promise<DateListItem[]> {
+  const [supabase, space, user] = await Promise.all([
+    createClient(),
+    requireSpace(),
+    requireUser(),
+  ]);
+
+  const { data: dates, error: datesError } = await supabase
+    .from("dates")
+    .select("*")
+    .eq("space_id", space.id)
+    .order("start_date", {
+      ascending: true,
+    });
+
+  if (datesError) {
+    throw new Error(`Failed to load dates: ${datesError.message}`);
+  }
+
+  if (dates.length === 0) {
+    return [];
+  }
+
+  const dateIds = dates.map((date) => date.id);
+
+  const { data: participants, error: participantError } = await supabase
+    .from("date_participants")
+    .select("*")
+    .in("date_id", dateIds);
+
+  if (participantError) {
+    throw new Error(
+      `Failed to load date participants: ${participantError.message}`,
+    );
+  }
+
+  const userIds = Array.from(
+    new Set(participants.map((participant) => participant.user_id)),
+  );
+
+  const { data: profiles, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, display_name")
+    .in("id", userIds);
+
+  if (profileError) {
+    throw new Error(`Failed to load profiles: ${profileError.message}`);
+  }
+
+  const profileMap = new Map(
+    profiles.map((profile) => [profile.id, profile.display_name ?? "Member"]),
+  );
+
+  return dates.map((date) => {
+    const dateParticipants = participants
+      .filter((participant) => participant.date_id === date.id)
+      .map(
+        (participant): DateParticipantSummary => ({
+          userId: participant.user_id,
+
+          role: participant.role as "organizer" | "invitee",
+
+          status: participant.status as "pending" | "accepted" | "declined",
+
+          displayName: profileMap.get(participant.user_id) ?? "Member",
+        }),
+      );
+
+    return {
+      date,
+
+      participants: dateParticipants,
+
+      currentUserParticipant: dateParticipants.find(
+        (participant) => participant.userId === user.id,
+      ),
+    };
+  });
+}
+
+===== GET DATE =====
+import "server-only";
+
+import { createClient } from "@/lib/supabase/server";
+
+import { requireSpace } from "@/lib/space/require-space";
+
+import { requireUser } from "@/lib/auth/require-user";
+
+import type {
+  DateDetails,
+  DateParticipantSummary,
+} from "@/features/dates/types";
+
+export async function getDate(dateId: string): Promise<DateDetails | null> {
+  const [supabase, space, user] = await Promise.all([
+    createClient(),
+    requireSpace(),
+    requireUser(),
+  ]);
+
+  const { data: date, error: dateError } = await supabase
+    .from("dates")
+    .select("*")
+    .eq("id", dateId)
+    .eq("space_id", space.id)
+    .maybeSingle();
+
+  if (dateError) {
+    throw new Error(`Failed to load date: ${dateError.message}`);
+  }
+
+  if (!date) {
+    return null;
+  }
+
+  const [daysResult, itemsResult, participantsResult] = await Promise.all([
+    supabase
+      .from("date_days")
+      .select("*")
+      .eq("date_id", date.id)
+      .eq("space_id", space.id)
+      .order("day_number", {
+        ascending: true,
+      }),
+
+    supabase
+      .from("date_itinerary_items")
+      .select("*")
+      .eq("date_id", date.id)
+      .eq("space_id", space.id)
+      .order("sort_order", {
+        ascending: true,
+      }),
+
+    supabase
+      .from("date_participants")
+      .select("*")
+      .eq("date_id", date.id)
+      .eq("space_id", space.id),
+  ]);
+
+  if (daysResult.error) {
+    throw new Error(`Failed to load date days: ${daysResult.error.message}`);
+  }
+
+  if (itemsResult.error) {
+    throw new Error(`Failed to load itinerary: ${itemsResult.error.message}`);
+  }
+
+  if (participantsResult.error) {
+    throw new Error(
+      `Failed to load participants: ${participantsResult.error.message}`,
+    );
+  }
+
+  const participants = participantsResult.data;
+
+  const userIds = participants.map((participant) => participant.user_id);
+
+  const { data: profiles, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, display_name")
+    .in("id", userIds);
+
+  if (profileError) {
+    throw new Error(`Failed to load profiles: ${profileError.message}`);
+  }
+
+  const profileMap = new Map(
+    profiles.map((profile) => [profile.id, profile.display_name ?? "Member"]),
+  );
+
+  const participantSummaries = participants.map(
+    (participant): DateParticipantSummary => ({
+      userId: participant.user_id,
+
+      role: participant.role as "organizer" | "invitee",
+
+      status: participant.status as "pending" | "accepted" | "declined",
+
+      displayName: profileMap.get(participant.user_id) ?? "Member",
+    }),
+  );
+
+  return {
+    date,
+
+    participants: participantSummaries,
+
+    currentUserParticipant: participantSummaries.find(
+      (participant) => participant.userId === user.id,
+    ),
+
+    days: daysResult.data.map((day) => ({
+      day,
+
+      items: itemsResult.data.filter((item) => item.date_day_id === day.id),
+    })),
+  };
+}
+
+===== GET PLANNER PLACES =====
+import "server-only";
+
+import { createClient } from "@/lib/supabase/server";
+
+import { requireSpace } from "@/lib/space/require-space";
+
+import type { PlannerPlace } from "@/features/dates/types";
+
+export async function getPlannerPlaces(): Promise<PlannerPlace[]> {
+  const [supabase, space] = await Promise.all([createClient(), requireSpace()]);
+
+  const { data, error } = await supabase
+    .from("places")
+    .select(
+      `
+        id,
+        name,
+        status,
+        note,
+        address,
+        latitude,
+        longitude
+      `,
+    )
+    .eq("space_id", space.id)
+    .order("name", {
+      ascending: true,
+    });
+
+  if (error) {
+    throw new Error(`Failed to load places: ${error.message}`);
+  }
+
+  return data;
+}
+
+===== DATE RECAP WINDOW =====
+export type DateRecapWindowState =
+  | "not_ready"
+  | "available"
+  | "expired"
+  | "completed";
+
+function addDays(dateKey: string, days: number) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+
+  return date.toISOString().slice(0, 10);
+}
+
+export function getDateRecapDeadline(endDate: string) {
+  return addDays(endDate, 7);
+}
+
+export function getDateRecapWindowState({
+  endDate,
+  today,
+  recapStatus,
+}: {
+  endDate: string;
+  today: string;
+  recapStatus?: "draft" | "completed";
+}): DateRecapWindowState {
+  if (recapStatus === "completed") {
+    return "completed";
+  }
+
+  /*
+   * The Date hasn't ended yet.
+   */
+  if (endDate >= today) {
+    return "not_ready";
+  }
+
+  const deadline = getDateRecapDeadline(endDate);
+
+  if (today <= deadline) {
+    return "available";
+  }
+
+  return "expired";
+}
