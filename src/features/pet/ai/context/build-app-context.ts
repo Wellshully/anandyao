@@ -1,5 +1,5 @@
 import "server-only";
-
+import { getPetStudyContext } from "./providers/study";
 import { getPetDatesContext } from "./providers/dates";
 import { getPetPlacesContext } from "./providers/places";
 import { selectContextSources } from "./select-context-sources";
@@ -33,6 +33,9 @@ export async function buildAppContext({
 
         case "dates":
           context.dates = await getPetDatesContext();
+          break;
+        case "study":
+          context.study = await getPetStudyContext();
           break;
       }
     }),
@@ -87,7 +90,86 @@ Places 狀態規則：
 - 如果使用者詢問「想去哪些地方」：
   只根據 wantToGo 回答。
   不要把 visited 自動算成想去。
-${JSON.stringify(context, null, 2)}
+
+Study 規則：
+
+- study 中的資料只屬於目前正在登入、正在和你說話的主人。
+- study.currentDate 是目前在 study.timeZone 時區中的今天日期。
+
+- study.dueToday：
+  今天截止而且尚未提交的作業。
+  如果 deadlinePassed = true，代表今天的截止時間已經過了，但目前資料仍顯示尚未提交。
+
+- study.overdue：
+  截止日期早於今天，而且目前仍顯示尚未提交的作業。
+
+- study.upcoming：
+  今天之後即將截止、目前尚未提交的作業。
+
+- submitted 的作業不會出現在這份 context 中，因此不要把 context 中的作業描述成已完成。
+
+- 回答「今天要幹嘛」、「今天有什麼事」、「今天有什麼安排」這類問題時：
+  同時考慮 dates 與 study。
+
+  Dates：
+  - 提到今天正在進行、今天開始、今天結束，或日期範圍包含今天的項目。
+
+Study 規則：
+
+- study 中的資料只屬於目前正在登入、正在和你說話的主人。
+- study.currentDate 是目前在 study.timeZone 時區中的今天日期。
+
+- study.dueToday：
+  今天截止而且尚未提交的作業。
+
+- study.overdue：
+  截止日期早於今天，而且目前仍顯示尚未提交的作業。
+
+- study.upcoming：
+  今天之後截止，而且目前尚未提交的作業。
+
+- submitted 的作業不會出現在這份 context 中。
+
+非常重要：
+
+「有什麼作業」、「有作業嗎」、「有什麼作業要做」、
+「最近有什麼作業」、「還有什麼作業」這類沒有指定截止日期的問題，
+是在詢問所有目前尚未完成的作業。
+
+回答這類問題時，必須同時檢查：
+1. overdue
+2. dueToday
+3. upcoming
+
+只要其中任何一個陣列不是空的，就不能回答「沒有作業」。
+
+例如：
+- dueToday 為空
+- upcoming 有兩份作業
+
+這代表「今天沒有截止的作業，但仍然有兩份尚未完成的作業」，
+絕對不代表「沒有作業」。
+
+如果主人詢問「今天有什麼作業要交」、「今天截止什麼」，
+才只把 dueToday 當作主要答案。
+
+如果主人詢問「今天要幹嘛」、「今天有什麼事」、「今天有什麼安排」：
+- 同時考慮 dates 與 study。
+- dates 中今天正在進行的事情要回答。
+- study.dueToday 要回答。
+- study.overdue 如果存在，要提醒。
+- study.upcoming 中明天截止的作業也要提醒，因為今天可能需要處理。
+- 必須清楚說明它是「明天截止」，不能說成「今天截止」。
+
+回答作業時，要根據 dueAt 正確區分：
+- 今天截止
+- 明天截止
+- 未來某天截止
+- 已逾期
+
+不要自行改變作業的截止日期。
+不要把「今天沒有截止的作業」說成「沒有作業」。
+  ${JSON.stringify(context, null, 2)}
 </app_context>
 `.trim();
 }

@@ -1,5 +1,4 @@
-export type AppContextSource = "places" | "dates";
-
+export type AppContextSource = "places" | "dates" | "study";
 export type PetPlaceContextItem = {
   name: string;
   status: string;
@@ -52,8 +51,24 @@ export type PetDatesContext = {
   total: number;
   items: PetDateContextItem[];
 };
+export type PetStudyAssignmentContextItem = {
+  title: string;
+  courseName: string;
+  dueAt: string;
+  late: boolean;
+  missing: boolean;
+  deadlinePassed: boolean;
+};
+export type PetStudyContext = {
+  currentDate: string;
+  timeZone: string;
 
+  dueToday: PetStudyAssignmentContextItem[];
+  overdue: PetStudyAssignmentContextItem[];
+  upcoming: PetStudyAssignmentContextItem[];
+};
 export type PetAppContext = {
   places?: PetPlacesContext;
   dates?: PetDatesContext;
+  study?: PetStudyContext;
 };

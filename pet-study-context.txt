@@ -1,0 +1,349 @@
+===== STUDY FILES =====
+src/app/(main)/study/announcements/[id]/page.tsx
+src/app/(main)/study/assignments/[id]/page.tsx
+src/app/(main)/study/courses/[coolCourseId]/page.tsx
+src/app/(main)/study/inbox/[id]/page.tsx
+src/app/(main)/study/inbox/page.tsx
+src/app/(main)/study/page.tsx
+src/app/(main)/study/sync-history/page.tsx
+src/features/study/actions.ts
+src/features/study/browser-types.ts
+src/features/study/components/StudySyncButton.tsx
+src/features/study/lib/ensure-study-fresh.ts
+src/features/study/lib/get-study-announcement-detail.ts
+src/features/study/lib/get-study-assignment-detail.ts
+src/features/study/lib/get-study-browser.ts
+src/features/study/lib/get-study-course-detail.ts
+src/features/study/lib/get-study-credentials.ts
+src/features/study/lib/get-study-overview.ts
+src/features/study/lib/is-assignment-submitted.ts
+src/features/study/lib/ntu-cool-client.ts
+src/features/study/lib/ntu-cool-session.ts
+src/features/study/lib/sanitize-study-html.ts
+src/features/study/lib/sync-ntu-cool.ts
+src/features/study/mail/get-study-mail-detail.ts
+src/features/study/mail/get-study-mail-list.ts
+src/features/study/mail/mail-filter.ts
+src/features/study/mail/ntu-webmail-client.ts
+src/features/study/mail/sync-ntu-mail.ts
+
+===== STUDY TABLES =====
+1152-        };
+1153-        Relationships: [];
+1154-      };
+1155:      study_announcements: {
+1156-        Row: {
+1157-          cool_announcement_id: number;
+1158-          cool_course_id: number | null;
+1159-          course_name: string | null;
+1160-          created_at: string;
+1161-          html_url: string;
+1162-          id: string;
+1163-          posted_at: string | null;
+1164-          read_state: string;
+1165-          seen_at: string | null;
+1166-          synced_at: string;
+1167-          title: string;
+1168-          user_id: string;
+1169-        };
+1170-        Insert: {
+1171-          cool_announcement_id: number;
+1172-          cool_course_id?: number | null;
+1173-          course_name?: string | null;
+1174-          created_at?: string;
+1175-          html_url: string;
+1176-          id?: string;
+1177-          posted_at?: string | null;
+1178-          read_state: string;
+1179-          seen_at?: string | null;
+1180-          synced_at: string;
+1181-          title: string;
+1182-          user_id: string;
+1183-        };
+1184-        Update: {
+1185-          cool_announcement_id?: number;
+1186-          cool_course_id?: number | null;
+1187-          course_name?: string | null;
+1188-          created_at?: string;
+1189-          html_url?: string;
+1190-          id?: string;
+1191-          posted_at?: string | null;
+1192-          read_state?: string;
+1193-          seen_at?: string | null;
+1194-          synced_at?: string;
+1195-          title?: string;
+1196-          user_id?: string;
+1197-        };
+1198-        Relationships: [
+1199-          {
+1200-            foreignKeyName: "study_announcements_user_id_fkey";
+1201-            columns: ["user_id"];
+1202-            isOneToOne: false;
+1203-            referencedRelation: "profiles";
+1204-            referencedColumns: ["id"];
+1205-          },
+1206-        ];
+1207-      };
+1208:      study_assignments: {
+1209-        Row: {
+1210-          cool_assignment_id: number;
+1211-          cool_course_id: number;
+1212-          course_name: string;
+1213-          created_at: string;
+1214-          due_at: string | null;
+1215-          html_url: string;
+1216-          id: string;
+1217-          late: boolean;
+1218-          missing: boolean;
+1219-          submission_state: string | null;
+1220-          submitted: boolean;
+1221-          submitted_at: string | null;
+1222-          synced_at: string;
+1223-          title: string;
+1224-          user_id: string;
+1225-        };
+1226-        Insert: {
+1227-          cool_assignment_id: number;
+1228-          cool_course_id: number;
+1229-          course_name: string;
+1230-          created_at?: string;
+1231-          due_at?: string | null;
+1232-          html_url: string;
+1233-          id?: string;
+1234-          late?: boolean;
+1235-          missing?: boolean;
+1236-          submission_state?: string | null;
+1237-          submitted?: boolean;
+1238-          submitted_at?: string | null;
+1239-          synced_at: string;
+1240-          title: string;
+1241-          user_id: string;
+1242-        };
+1243-        Update: {
+1244-          cool_assignment_id?: number;
+1245-          cool_course_id?: number;
+1246-          course_name?: string;
+1247-          created_at?: string;
+1248-          due_at?: string | null;
+1249-          html_url?: string;
+1250-          id?: string;
+1251-          late?: boolean;
+1252-          missing?: boolean;
+1253-          submission_state?: string | null;
+1254-          submitted?: boolean;
+1255-          submitted_at?: string | null;
+1256-          synced_at?: string;
+1257-          title?: string;
+1258-          user_id?: string;
+1259-        };
+1260-        Relationships: [
+1261-          {
+1262-            foreignKeyName: "study_assignments_user_id_fkey";
+1263-            columns: ["user_id"];
+1264-            isOneToOne: false;
+1265-            referencedRelation: "profiles";
+1266-            referencedColumns: ["id"];
+1267-          },
+1268-        ];
+1269-      };
+1270:      study_courses: {
+1271-        Row: {
+1272-          cool_course_id: number;
+1273-          course_code: string | null;
+1274-          created_at: string;
+1275-          id: string;
+1276-          name: string;
+1277-          synced_at: string;
+1278-          user_id: string;
+1279-        };
+1280-        Insert: {
+1281-          cool_course_id: number;
+1282-          course_code?: string | null;
+1283-          created_at?: string;
+1284-          id?: string;
+1285-          name: string;
+1286-          synced_at: string;
+1287-          user_id: string;
+1288-        };
+1289-        Update: {
+1290-          cool_course_id?: number;
+1291-          course_code?: string | null;
+1292-          created_at?: string;
+1293-          id?: string;
+1294-          name?: string;
+1295-          synced_at?: string;
+1296-          user_id?: string;
+1297-        };
+1298-        Relationships: [
+1299-          {
+1300-            foreignKeyName: "study_courses_user_id_fkey";
+1301-            columns: ["user_id"];
+1302-            isOneToOne: false;
+1303-            referencedRelation: "profiles";
+1304-            referencedColumns: ["id"];
+1305-          },
+1306-        ];
+1307-      };
+1308:      study_mail_messages: {
+1309-        Row: {
+1310-          created_at: string;
+1311-          from_address: string | null;
+1312-          from_name: string | null;
+1313-          id: string;
+1314-          message_id_header: string | null;
+1315-          seen_at: string | null;
+1316-          sent_at: string | null;
+1317-          subject: string;
+1318-          synced_at: string;
+1319-          uidl: string;
+1320-          updated_at: string;
+1321-          user_id: string;
+1322-        };
+1323-        Insert: {
+1324-          created_at?: string;
+1325-          from_address?: string | null;
+1326-          from_name?: string | null;
+1327-          id?: string;
+1328-          message_id_header?: string | null;
+1329-          seen_at?: string | null;
+1330-          sent_at?: string | null;
+1331-          subject?: string;
+1332-          synced_at?: string;
+1333-          uidl: string;
+1334-          updated_at?: string;
+1335-          user_id: string;
+1336-        };
+1337-        Update: {
+1338-          created_at?: string;
+1339-          from_address?: string | null;
+1340-          from_name?: string | null;
+1341-          id?: string;
+1342-          message_id_header?: string | null;
+1343-          seen_at?: string | null;
+1344-          sent_at?: string | null;
+1345-          subject?: string;
+1346-          synced_at?: string;
+1347-          uidl?: string;
+1348-          updated_at?: string;
+1349-          user_id?: string;
+1350-        };
+1351-        Relationships: [
+1352-          {
+1353:            foreignKeyName: "study_mail_messages_user_id_fkey";
+1354-            columns: ["user_id"];
+1355-            isOneToOne: false;
+1356-            referencedRelation: "profiles";
+1357-            referencedColumns: ["id"];
+1358-          },
+1359-        ];
+1360-      };
+1361-      study_sync_runs: {
+1362-        Row: {
+1363-          announcements_count: number;
+1364-          assignments_count: number;
+1365-          courses_count: number;
+1366-          error_message: string | null;
+1367-          finished_at: string | null;
+1368-          id: string;
+1369-          provider: string;
+1370-          started_at: string;
+1371-          status: string;
+1372-          trigger_source: string;
+1373-          user_id: string;
+1374-        };
+1375-        Insert: {
+1376-          announcements_count?: number;
+1377-          assignments_count?: number;
+1378-          courses_count?: number;
+1379-          error_message?: string | null;
+1380-          finished_at?: string | null;
+1381-          id?: string;
+1382-          provider?: string;
+1383-          started_at?: string;
+1384-          status: string;
+1385-          trigger_source: string;
+1386-          user_id: string;
+1387-        };
+1388-        Update: {
+1389-          announcements_count?: number;
+1390-          assignments_count?: number;
+1391-          courses_count?: number;
+1392-          error_message?: string | null;
+1393-          finished_at?: string | null;
+1394-          id?: string;
+1395-          provider?: string;
+1396-          started_at?: string;
+1397-          status?: string;
+1398-          trigger_source?: string;
+1399-          user_id?: string;
+1400-        };
+1401-        Relationships: [
+1402-          {
+1403-            foreignKeyName: "study_sync_runs_user_id_fkey";
+1404-            columns: ["user_id"];
+1405-            isOneToOne: false;
+1406-            referencedRelation: "profiles";
+1407-            referencedColumns: ["id"];
+1408-          },
+1409-        ];
+1410-      };
+1411-      study_sync_state: {
+1412-        Row: {
+1413-          last_synced_at: string;
+1414-          user_id: string;
+1415-        };
+1416-        Insert: {
+1417-          last_synced_at: string;
+1418-          user_id: string;
+1419-        };
+1420-        Update: {
+1421-          last_synced_at?: string;
+1422-          user_id?: string;
+1423-        };
+1424-        Relationships: [
+1425-          {
+1426-            foreignKeyName: "study_sync_state_user_id_fkey";
+1427-            columns: ["user_id"];
+1428-            isOneToOne: true;
+1429-            referencedRelation: "profiles";
+1430-            referencedColumns: ["id"];
+1431-          },
+1432-        ];
+1433-      };
+1434-    };
+1435-    Views: {
+1436-      [_ in never]: never;
+1437-    };
+1438-    Functions: {
+1439-      cancel_date: { Args: { p_date_id: string }; Returns: undefined };
+1440-      claim_initial_space: {
+1441-        Args: { space_name: string; space_slug: string };
+1442-        Returns: string;
+1443-      };
+
+===== STUDY SUPABASE QUERIES =====
+src/features/study/lib/get-study-assignment-detail.ts:16:    .from("study_assignments")
+src/features/study/lib/ensure-study-fresh.ts:42:      .from("study_courses")
+src/features/study/lib/ensure-study-fresh.ts:52:      .from("study_mail_messages")
+src/features/study/lib/get-study-announcement-detail.ts:16:    .from("study_announcements")
+src/features/study/lib/get-study-announcement-detail.ts:58:        .from("study_announcements")
+src/features/study/lib/get-study-overview.ts:39:    .from("study_sync_state")
+src/features/study/lib/get-study-overview.ts:63:        .from("study_courses")
+src/features/study/lib/get-study-overview.ts:73:        .from("study_assignments")
+src/features/study/lib/get-study-overview.ts:83:        .from("study_assignments")
+src/features/study/lib/get-study-overview.ts:95:        .from("study_announcements")
+src/features/study/lib/get-study-browser.ts:26:        .from("study_courses")
+src/features/study/lib/get-study-browser.ts:38:        .from("study_assignments")
+src/features/study/lib/get-study-browser.ts:58:        .from("study_announcements")
+src/features/study/lib/sync-ntu-cool.ts:45:    .from("study_sync_runs")
+src/features/study/lib/sync-ntu-cool.ts:78:    .from("study_sync_runs")
+src/features/study/lib/sync-ntu-cool.ts:109:    .from("study_sync_runs")
+src/features/study/lib/sync-ntu-cool.ts:163:        .from("study_courses")
+src/features/study/lib/sync-ntu-cool.ts:251:        .from("study_assignments")
+src/features/study/lib/sync-ntu-cool.ts:311:        .from("study_announcements")
+src/features/study/mail/sync-ntu-mail.ts:206:    .from("study_mail_messages")
+src/features/study/mail/sync-ntu-mail.ts:253:    .from("study_mail_messages")
+src/features/study/mail/get-study-mail-list.ts:29:    .from("study_mail_messages")
+src/features/study/mail/get-study-mail-detail.ts:49:    .from("study_mail_messages")
+src/features/study/mail/get-study-mail-detail.ts:108:        .from("study_mail_messages")
+src/app/(main)/study/sync-history/page.tsx:86:    .from("study_sync_runs")
