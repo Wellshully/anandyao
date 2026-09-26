@@ -157,7 +157,7 @@ async function sendMailNotification(userId: string, mail: SyncedMail) {
        * We can point this directly
        * to the mail detail page.
        */
-      url: `/study/mail/${mail.id}`,
+      url: `/study/inbox/${mail.id}`,
     });
 
     /*
