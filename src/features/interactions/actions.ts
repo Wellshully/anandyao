@@ -12,7 +12,7 @@ import { sendPushToUser } from "@/features/notifications/lib/send-push-to-user";
 const DEFAULT_ACTION_NAME = "戳一下";
 
 const MAX_ACTION_NAME_LENGTH = 12;
-const INTERACTION_COOLDOWN_SECONDS = 60;
+const INTERACTION_COOLDOWN_SECONDS = 15;
 
 export type UpdateInteractionNameResult =
   | {
