@@ -1,14 +1,134 @@
+===== proxy.ts =====
+import type { NextRequest } from "next/server";
+
+import { updateSession } from "@/lib/supabase/proxy";
+
+export async function proxy(request: NextRequest) {
+  return updateSession(request);
+}
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
+};
+
+===== src/lib/supabase/proxy.ts =====
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+
+import type { Database } from "@/types/database";
+
+export async function updateSession(request: NextRequest) {
+  let response = NextResponse.next({
+    request,
+  });
+
+  const supabase = createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+
+        setAll(cookiesToSet, headersToSet) {
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value);
+          });
+
+          response = NextResponse.next({
+            request,
+          });
+
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+
+          if (headersToSet) {
+            Object.entries(headersToSet).forEach(([key, value]) => {
+              response.headers.set(key, value);
+            });
+          }
+        },
+      },
+    },
+  );
+
+  await supabase.auth.getClaims();
+
+  return response;
+}
+
+===== src/lib/supabase/server.ts =====
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+
+import type { Database } from "@/types/database";
+
+export async function createClient() {
+  const cookieStore = await cookies();
+
+  return createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // Session refresh will later be
+            // handled by our auth proxy.
+          }
+        },
+      },
+    },
+  );
+}
+
+===== src/lib/auth/require-user.ts =====
+import { redirect } from "next/navigation";
+
+import { createClient } from "@/lib/supabase/server";
+
+export async function requireUser() {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.auth.getClaims();
+
+  const userId = data?.claims?.sub;
+
+  if (error || !userId) {
+    redirect("/login");
+  }
+
+  return {
+    id: userId,
+    claims: data.claims,
+  };
+}
+
+===== src/features/dates/actions.ts =====
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { unstable_rethrow } from "next/navigation";
 
 import { createDate } from "@/features/dates/lib/create-date";
+
 import { respondToDateInvitation } from "@/features/dates/lib/respond-to-invitation";
+
 import { addItineraryItem } from "@/features/dates/lib/add-itinerary-item";
+
 import { deleteItineraryItem } from "@/features/dates/lib/delete-itinerary-item";
 import { reorderItinerary } from "@/features/dates/lib/reorder-itinerary";
-
 import type {
   AddItineraryInput,
   CreateDateInput,
@@ -38,8 +158,6 @@ export async function createDateAction(
       dateId,
     };
   } catch (cause) {
-    unstable_rethrow(cause);
-
     console.error("createDateAction error:", cause);
 
     return {
@@ -74,8 +192,6 @@ export async function respondToDateInvitationAction(
       success: true,
     };
   } catch (cause) {
-    unstable_rethrow(cause);
-
     console.error("respondToDateInvitationAction error:", cause);
 
     return {
@@ -89,19 +205,19 @@ export async function respondToDateInvitationAction(
 export type AddItineraryActionResult =
   | {
       success: true;
+
       item: DateItineraryItem;
     }
   | {
       success: false;
+
       error: string;
     };
-
 export async function addItineraryItemAction(
   input: AddItineraryInput,
 ): Promise<AddItineraryActionResult> {
   try {
     const item = await addItineraryItem(input);
-
     revalidatePath(`/dates/${input.dateId}`);
 
     return {
@@ -109,8 +225,6 @@ export async function addItineraryItemAction(
       item,
     };
   } catch (cause) {
-    unstable_rethrow(cause);
-
     console.error("addItineraryItemAction error:", cause);
 
     return {
@@ -143,8 +257,6 @@ export async function deleteItineraryItemAction(
       success: true,
     };
   } catch (cause) {
-    unstable_rethrow(cause);
-
     console.error("deleteItineraryItemAction error:", cause);
 
     return {
@@ -154,7 +266,6 @@ export async function deleteItineraryItemAction(
     };
   }
 }
-
 export type ReorderItineraryActionResult =
   | {
       success: true;
@@ -178,8 +289,6 @@ export async function reorderItineraryAction(
       success: true,
     };
   } catch (cause) {
-    unstable_rethrow(cause);
-
     console.error("reorderItineraryAction error:", cause);
 
     return {
@@ -189,3 +298,10 @@ export async function reorderItineraryAction(
     };
   }
 }
+
+===== npm list @supabase/ssr @supabase/supabase-js =====
+anandyao@0.1.0 /home/39ll7/Documents/Web_Project/anandyao
+├─┬ @supabase/ssr@0.12.7
+│ └── @supabase/supabase-js@2.116.0 deduped
+└── @supabase/supabase-js@2.116.0
+
