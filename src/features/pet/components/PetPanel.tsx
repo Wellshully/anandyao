@@ -2,11 +2,15 @@
 
 import type { FormEvent } from "react";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { performPetAction } from "@/features/pet/actions";
 
 import { talkToPetAction } from "@/features/pet/ai/actions";
+import {
+  trimPetConversation,
+  type PetConversationMessage,
+} from "@/features/pet/ai/conversation";
 
 import PetCharacter from "@/features/pet/components/PetCharacter";
 
@@ -26,6 +30,8 @@ type PetPanelProps = {
 };
 
 const MAX_MESSAGE_LENGTH = 500;
+
+const CONVERSATION_STORAGE_KEY = "pet-conversation-v1";
 
 const actionMessages: Record<PetAction, string> = {
   feed: "吃飽了一點",
@@ -69,6 +75,10 @@ export default function PetPanel({ name, initialState }: PetPanelProps) {
 
   const [petReply, setPetReply] = useState("");
 
+  const [conversation, setConversation] = useState<PetConversationMessage[]>(
+    [],
+  );
+
   const [petPose, setPetPose] = useState<PetPose | null>(null);
 
   const [aiError, setAiError] = useState("");
@@ -78,6 +88,50 @@ export default function PetPanel({ name, initialState }: PetPanelProps) {
   const [isTalking, startTalkingTransition] = useTransition();
 
   const animationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const stored = window.sessionStorage.getItem(CONVERSATION_STORAGE_KEY);
+
+        if (!stored) {
+          return;
+        }
+
+        const parsed = JSON.parse(stored);
+
+        if (!Array.isArray(parsed)) {
+          return;
+        }
+
+        const validMessages = parsed.filter(
+          (item): item is PetConversationMessage =>
+            typeof item === "object" &&
+            item !== null &&
+            (item.role === "user" || item.role === "pet") &&
+            typeof item.content === "string",
+        );
+
+        const trimmed = trimPetConversation(validMessages);
+
+        setConversation(trimmed);
+
+        const lastPetReply = [...trimmed]
+          .reverse()
+          .find((item) => item.role === "pet");
+
+        if (lastPetReply) {
+          setPetReply(lastPetReply.content);
+        }
+      } catch {
+        window.sessionStorage.removeItem(CONVERSATION_STORAGE_KEY);
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   function interact(action: PetAction) {
     if (isInteractionPending || isTalking) {
@@ -138,8 +192,7 @@ export default function PetPanel({ name, initialState }: PetPanelProps) {
     setInteractionMessage("");
 
     startTalkingTransition(async () => {
-      const result = await talkToPetAction(message);
-
+      const result = await talkToPetAction(message, conversation);
       if (!result.success) {
         setAiError(result.error);
 
@@ -147,7 +200,24 @@ export default function PetPanel({ name, initialState }: PetPanelProps) {
       }
 
       setPetReply(result.reply.reply);
+      const nextConversation = trimPetConversation([
+        ...conversation,
+        {
+          role: "user",
+          content: message,
+        },
+        {
+          role: "pet",
+          content: result.reply.reply,
+        },
+      ]);
 
+      setConversation(nextConversation);
+
+      window.sessionStorage.setItem(
+        CONVERSATION_STORAGE_KEY,
+        JSON.stringify(nextConversation),
+      );
       setPetPose(result.reply.pose);
 
       setAnimation("idle");
@@ -241,68 +311,75 @@ export default function PetPanel({ name, initialState }: PetPanelProps) {
       <form
         onSubmit={handleTalk}
         className="
-          mx-auto
-          mt-4
-          max-w-lg
-        "
-      >
-        <div
-          className="
-            flex
-            items-end
-            gap-2
-            rounded-2xl
-            border
-            border-[var(--border)]
-            bg-[var(--surface)]
-            p-2
-          "
-        >
-          <textarea
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            maxLength={MAX_MESSAGE_LENGTH}
-            rows={1}
-            disabled={isTalking}
-            placeholder="跟牠說點什麼……"
-            className="
-              min-h-10
-              flex-1
-              resize-none
-              bg-transparent
-              px-3
-              py-2
-              text-sm
-              outline-none
-              placeholder:text-[var(--muted)]
-              disabled:opacity-60
-            "
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={isTalking || isInteractionPending}
-          className="
-    shrink-0
-    rounded-xl
-    border
-    border-[var(--border)]
-    px-4
-    py-2
-    text-sm
-    transition
-    hover:border-[var(--foreground)]
-    disabled:cursor-default
-    disabled:opacity-40
+    mx-auto
+    mt-4
+    max-w-lg
   "
-        >
-          {isTalking ? "..." : "送出"}
-        </button>
+      >
+        <div className="flex items-end gap-3">
+          <div
+            className="
+        flex
+        min-w-0
+        flex-1
+        items-end
+        rounded-2xl
+        border
+        border-[var(--border)]
+        bg-[var(--surface)]
+        p-2
+      "
+          >
+            <textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              maxLength={MAX_MESSAGE_LENGTH}
+              rows={1}
+              disabled={isTalking}
+              placeholder="跟萌蛋說點什麼……"
+              className="
+          min-h-10
+          min-w-0
+          flex-1
+          resize-none
+          bg-transparent
+          px-3
+          py-2
+          text-sm
+          outline-none
+          placeholder:text-[var(--muted)]
+          disabled:opacity-60
+        "
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isTalking || isInteractionPending || !input.trim()}
+            className="
+        min-h-14
+        shrink-0
+        rounded-2xl
+        border
+        border-[var(--border)]
+        bg-[var(--surface)]
+        px-5
+        text-sm
+        font-medium
+        transition
+        hover:border-[var(--foreground)]
+        disabled:cursor-default
+        disabled:opacity-40
+      "
+          >
+            {isTalking ? "..." : "送出"}
+          </button>
+        </div>
+
         {aiError && (
           <p className="mt-2 text-xs text-[var(--danger)]">{aiError}</p>
         )}
       </form>
-
       <div
         className="
           mt-10

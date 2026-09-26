@@ -8,11 +8,10 @@ import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 
 import { sendPushToUser } from "@/features/notifications/lib/send-push-to-user";
-
+import { INTERACTION_COOLDOWN_SECONDS } from "@/features/interactions/config";
 const DEFAULT_ACTION_NAME = "戳一下";
 
 const MAX_ACTION_NAME_LENGTH = 12;
-const INTERACTION_COOLDOWN_SECONDS = 15;
 
 export type UpdateInteractionNameResult =
   | {

@@ -20,7 +20,7 @@ export const PET_RULES = {
    * it naturally recovers with time.
    */
   recoveryPerHour: {
-    energy: 20,
+    energy: 40,
   },
 
   actions: {

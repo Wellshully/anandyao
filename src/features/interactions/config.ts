@@ -1,0 +1,1 @@
+export const INTERACTION_COOLDOWN_SECONDS = 15;

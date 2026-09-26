@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth/require-user";
 
 const DEFAULT_ACTION_NAME = "戳一下";
 
-const COOLDOWN_SECONDS = 60;
+import { INTERACTION_COOLDOWN_SECONDS } from "@/features/interactions/config";
 
 export type InteractionState = {
   actionName: string;
@@ -36,7 +36,7 @@ export async function getInteractionState(): Promise<InteractionState> {
 
   const elapsedMs = Date.now() - new Date(data.last_sent_at).getTime();
 
-  const remainingMs = COOLDOWN_SECONDS * 1000 - elapsedMs;
+  const remainingMs = INTERACTION_COOLDOWN_SECONDS * 1000 - elapsedMs;
 
   return {
     actionName,
