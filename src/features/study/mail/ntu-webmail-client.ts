@@ -1,21 +1,20 @@
 import "server-only";
 
 import Pop3Command from "node-pop3";
-
 import PostalMime from "postal-mime";
+
 import { requireUser } from "@/lib/auth/require-user";
 
 import { getStudyCredentials } from "@/features/study/lib/get-study-credentials";
+
 import type { Address, Mailbox } from "postal-mime";
 
 const host = process.env.NTU_MAIL_HOST ?? "msa.ntu.edu.tw";
 
 const port = Number(process.env.NTU_MAIL_PORT ?? "995");
 
-async function createPop3Client() {
-  const user = await requireUser();
-
-  const credentials = getStudyCredentials(user.id);
+async function createPop3ClientForUser(userId: string) {
+  const credentials = getStudyCredentials(userId);
 
   return new Pop3Command({
     user: credentials.mailUsername,
@@ -42,6 +41,13 @@ async function createPop3Client() {
     },
   });
 }
+
+async function createPop3Client() {
+  const user = await requireUser();
+
+  return createPop3ClientForUser(user.id);
+}
+
 /*
  * node-pop3 types RETR / TOP as
  * string | Stream.
@@ -85,11 +91,10 @@ export type NtuMailHeader = {
   messageId: string | null;
 };
 
-export async function getRecentNtuMailHeaders(
-  limit = 50,
+async function getRecentNtuMailHeadersFromClient(
+  pop3: Pop3Command,
+  limit: number,
 ): Promise<NtuMailHeader[]> {
-  const pop3 = await createPop3Client();
-
   try {
     const uidRows = await pop3.UIDL();
 
@@ -109,8 +114,10 @@ export async function getRecentNtuMailHeaders(
 
     /*
      * Sequential intentionally.
-     * POP3 uses one connection and
-     * commands should remain ordered.
+     *
+     * POP3 uses one connection
+     * and commands should remain
+     * ordered.
      */
     for (const item of latest) {
       const result = await pop3.TOP(item.messageNumber, 0);
@@ -149,9 +156,30 @@ export async function getRecentNtuMailHeaders(
   }
 }
 
-export async function getNtuMailByUidl(uidl: string) {
+export async function getRecentNtuMailHeaders(
+  limit = 50,
+): Promise<NtuMailHeader[]> {
   const pop3 = await createPop3Client();
 
+  return getRecentNtuMailHeadersFromClient(pop3, limit);
+}
+
+/*
+ * Background / cron version.
+ *
+ * Does not require a browser
+ * session or requireUser().
+ */
+export async function getRecentNtuMailHeadersForUser(
+  userId: string,
+  limit = 50,
+): Promise<NtuMailHeader[]> {
+  const pop3 = await createPop3ClientForUser(userId);
+
+  return getRecentNtuMailHeadersFromClient(pop3, limit);
+}
+
+async function getNtuMailByUidlFromClient(pop3: Pop3Command, uidl: string) {
   try {
     const uidRows = await pop3.UIDL();
 
@@ -177,8 +205,21 @@ export async function getNtuMailByUidl(uidl: string) {
       await pop3.QUIT();
     } catch {
       /*
-       * Ignore disconnect errors.
+       * Ignore disconnect
+       * errors.
        */
     }
   }
+}
+
+export async function getNtuMailByUidl(uidl: string) {
+  const pop3 = await createPop3Client();
+
+  return getNtuMailByUidlFromClient(pop3, uidl);
+}
+
+export async function getNtuMailByUidlForUser(userId: string, uidl: string) {
+  const pop3 = await createPop3ClientForUser(userId);
+
+  return getNtuMailByUidlFromClient(pop3, uidl);
 }
