@@ -3,17 +3,21 @@ export const siteConfig = {
   description: "Our little place on the internet.",
 
   timeZone: "Asia/Taipei",
+
   relationship: {
     startedAt: "2026-06-06",
   },
+
   birthday: {
     month: 10,
     day: 29,
   },
+
   space: {
     name: "An & Yao",
     slug: "an-and-yao",
   },
+
   navigation: [
     {
       label: "Home",
@@ -40,8 +44,12 @@ export const siteConfig = {
       href: "/journal",
     },
     {
-      href: "/study",
+      label: "Pet",
+      href: "/pet",
+    },
+    {
       label: "Study",
+      href: "/study",
     },
   ],
 } as const;

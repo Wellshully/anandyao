@@ -1,0 +1,107 @@
+import "server-only";
+
+import { requireUser } from "@/lib/auth/require-user";
+import { createClient } from "@/lib/supabase/server";
+
+import { getPet } from "@/features/pet/lib/get-pet";
+
+const EVENT_LABELS: Record<string, string> = {
+  feed: "餵食",
+  pet: "摸摸",
+  play: "玩耍",
+};
+
+export async function buildPetContext() {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const pet = await getPet();
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", user.id)
+    .single();
+
+  if (profileError) {
+    throw new Error(profileError.message);
+  }
+
+  /*
+   * Only give the LLM a small number of
+   * recent interactions.
+   *
+   * Do not send raw metadata or the full
+   * event history.
+   */
+  const { data: events, error: eventsError } = await supabase
+    .from("pet_events")
+    .select(
+      `
+        user_id,
+        event_type,
+        created_at
+      `,
+    )
+    .eq("pet_id", pet.id)
+    .order("created_at", {
+      ascending: false,
+    })
+    .limit(12);
+
+  if (eventsError) {
+    throw new Error(eventsError.message);
+  }
+
+  const userIds = [...new Set((events ?? []).map((event) => event.user_id))];
+
+  const nameByUserId = new Map<string, string>();
+
+  if (userIds.length > 0) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, display_name")
+      .in("id", userIds);
+
+    if (profilesError) {
+      throw new Error(profilesError.message);
+    }
+
+    for (const item of profiles ?? []) {
+      nameByUserId.set(item.id, item.display_name);
+    }
+  }
+
+  const recentEvents = (events ?? []).map((event) => {
+    const actor = nameByUserId.get(event.user_id) ?? "其中一位主人";
+
+    const action = EVENT_LABELS[event.event_type] ?? event.event_type;
+
+    return `${actor}：${action}`;
+  });
+
+  const state = pet.state;
+
+  return `
+目前正在跟你說話的人：
+${profile.display_name}
+
+你的名字：
+${pet.name}
+
+你的目前狀態：
+- 等級：Lv.${state.level}
+- XP：${Math.round(state.xp)}
+- 飽足：${Math.round(state.hunger)} / 100
+- 心情：${Math.round(state.happiness)} / 100
+- 精力：${Math.round(state.energy)} / 100
+- 當前情緒：${state.mood}
+
+最近的互動：
+${
+  recentEvents.length > 0
+    ? recentEvents.map((event) => `- ${event}`).join("\n")
+    : "- 最近還沒有互動紀錄"
+}
+`.trim();
+}

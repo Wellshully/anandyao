@@ -700,6 +700,95 @@ export type Database = {
           },
         ]
       }
+      pet_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json
+          pet_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json
+          pet_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json
+          pet_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pet_events_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pet_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pets: {
+        Row: {
+          created_at: string
+          energy: number
+          happiness: number
+          hunger: number
+          id: string
+          name: string
+          space_id: string
+          state_calculated_at: string
+          updated_at: string
+          xp: number
+        }
+        Insert: {
+          created_at?: string
+          energy?: number
+          happiness?: number
+          hunger?: number
+          id?: string
+          name?: string
+          space_id: string
+          state_calculated_at?: string
+          updated_at?: string
+          xp?: number
+        }
+        Update: {
+          created_at?: string
+          energy?: number
+          happiness?: number
+          hunger?: number
+          id?: string
+          name?: string
+          space_id?: string
+          state_calculated_at?: string
+          updated_at?: string
+          xp?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pets_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: true
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       places: {
         Row: {
           address: string | null

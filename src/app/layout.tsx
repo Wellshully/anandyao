@@ -1,17 +1,13 @@
 import type { Metadata } from "next";
-import { Noto_Sans_TC, Noto_Serif_TC } from "next/font/google";
+import type { CSSProperties } from "react";
 
 import "./globals.css";
+const fontVariables = {
+  "--font-sans":
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif',
 
-const sans = Noto_Sans_TC({
-  variable: "--font-sans",
-  subsets: ["latin"],
-});
-
-const serif = Noto_Serif_TC({
-  variable: "--font-serif",
-  subsets: ["latin"],
-});
+  "--font-serif": '"Noto Serif TC", "Songti TC", "PMingLiU", serif',
+} as CSSProperties;
 
 export const metadata: Metadata = {
   title: {
@@ -28,8 +24,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-Hant">
-      <body className={`${sans.variable} ${serif.variable}`}>{children}</body>
+    <html lang="zh-Hant" style={fontVariables}>
+      <body>{children}</body>
     </html>
   );
 }
