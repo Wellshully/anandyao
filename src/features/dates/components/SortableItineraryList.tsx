@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 
-import { Reorder } from "motion/react";
+import { Reorder, useDragControls } from "motion/react";
 
 import { useRouter } from "next/navigation";
 
@@ -12,7 +12,10 @@ import { reorderItineraryAction } from "@/features/dates/actions";
 
 import { calculateItinerarySchedule } from "@/features/dates/lib/calculate-itinerary-schedule";
 
-import { getItineraryTimeState } from "@/features/dates/lib/get-itinerary-time-state";
+import {
+  getItineraryTimeState,
+  type ItineraryTimeState,
+} from "@/features/dates/lib/get-itinerary-time-state";
 
 import { useCurrentTime } from "@/lib/time/use-current-time";
 
@@ -29,6 +32,75 @@ type SortableItineraryListProps = {
 
   items: DateItineraryItem[];
 };
+
+type SortableItineraryItemProps = {
+  dateId: string;
+
+  item: DateItineraryItem;
+
+  scheduledTime?: string;
+
+  hasConflict?: boolean;
+
+  timeState?: ItineraryTimeState;
+
+  isSoon?: boolean;
+
+  minutesUntilStart?: number | null;
+
+  isSaving: boolean;
+
+  onDragStart: () => void;
+
+  onDragEnd: () => void;
+};
+
+function SortableItineraryItem({
+  dateId,
+  item,
+  scheduledTime,
+  hasConflict,
+  timeState,
+  isSoon,
+  minutesUntilStart,
+  isSaving,
+  onDragStart,
+  onDragEnd,
+}: SortableItineraryItemProps) {
+  const dragControls = useDragControls();
+
+  return (
+    <Reorder.Item
+      value={item.id}
+      dragListener={false}
+      dragControls={dragControls}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className="list-none"
+      whileDrag={{
+        scale: 1.015,
+      }}
+    >
+      <ItineraryCard
+        dateId={dateId}
+        item={item}
+        scheduledTime={scheduledTime}
+        hasConflict={hasConflict}
+        timeState={timeState}
+        isSoon={isSoon}
+        minutesUntilStart={minutesUntilStart}
+        dragDisabled={isSaving}
+        onDragHandlePointerDown={(event) => {
+          if (isSaving) {
+            return;
+          }
+
+          dragControls.start(event);
+        }}
+      />
+    </Reorder.Item>
+  );
+}
 
 export default function SortableItineraryList({
   dateId,
@@ -140,30 +212,19 @@ export default function SortableItineraryList({
               : undefined;
 
           return (
-            <Reorder.Item
+            <SortableItineraryItem
               key={item.id}
-              value={item.id}
+              dateId={dateId}
+              item={item}
+              scheduledTime={scheduled?.displayStartTime}
+              hasConflict={scheduled?.hasConflict}
+              timeState={timeInfo?.state}
+              isSoon={timeInfo?.isSoon}
+              minutesUntilStart={timeInfo?.minutesUntilStart}
+              isSaving={isSaving}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
-              dragListener={!isSaving}
-              className="
-                  list-none
-                  touch-none
-                "
-              whileDrag={{
-                scale: 1.015,
-              }}
-            >
-              <ItineraryCard
-                dateId={dateId}
-                item={item}
-                scheduledTime={scheduled?.displayStartTime}
-                hasConflict={scheduled?.hasConflict}
-                timeState={timeInfo?.state}
-                isSoon={timeInfo?.isSoon}
-                minutesUntilStart={timeInfo?.minutesUntilStart}
-              />
-            </Reorder.Item>
+            />
           );
         })}
       </Reorder.Group>

@@ -34,26 +34,31 @@ export default async function DatePlanner({ details }: DatePlannerProps) {
 
   const isOrganizer = currentUserParticipant?.role === "organizer";
 
-  const canPlan = isAccepted && !isPast && isAcceptedParticipant;
+  /*
+   * Organizer can start planning immediately,
+   * even while the invitation is still pending.
+   *
+   * After the invitation is accepted, accepted
+   * participants can plan normally.
+   */
+  const canPlan =
+    !isPast &&
+    ((isPending && isOrganizer) || (isAccepted && isAcceptedParticipant));
 
   const canCancel =
     !isPast &&
     ((isAccepted && isAcceptedParticipant) || (isPending && isOrganizer));
 
   /*
-   * Pending and declined dates do not
-   * expose the planner yet.
+   * A pending invitee still waits for the
+   * invitation flow.
+   *
+   * The organizer, however, is allowed into
+   * the planner immediately.
    */
-
-  if (isPending || isDeclined) {
+  if ((isPending && !isOrganizer) || isDeclined) {
     return (
       <div className="space-y-4">
-        {canCancel && (
-          <div className="flex justify-end">
-            <CancelDateButton dateId={date.id} mode="withdraw" />
-          </div>
-        )}
-
         <div
           className="
             rounded-[var(--radius-md)]
@@ -64,9 +69,7 @@ export default async function DatePlanner({ details }: DatePlannerProps) {
           "
         >
           <p className="text-sm text-[var(--muted)]">
-            {isDeclined
-              ? "這個邀請已經婉拒。"
-              : "對方接受約會後，就可以一起開始排行程。"}
+            {isDeclined ? "這個邀請已經婉拒。" : "邀請還在等待回覆。"}
           </p>
         </div>
       </div>
@@ -78,21 +81,23 @@ export default async function DatePlanner({ details }: DatePlannerProps) {
     getPlannerPlaces(),
   ]);
 
-  let readOnlyMessage: string | null = null;
+  let plannerMessage: string | null = null;
 
   if (isCancelled) {
-    readOnlyMessage = "這次 Date 已取消，原本排好的行程仍然保留。";
+    plannerMessage = "這次 Date 已取消，原本排好的行程仍然保留。";
   } else if (isCompleted) {
-    readOnlyMessage = "這次 Date 已完成，行程以唯讀方式保留。";
+    plannerMessage = "這次 Date 已完成，行程以唯讀方式保留。";
   } else if (isPast) {
-    readOnlyMessage = "這個 Date 的日期已經過了，行程以唯讀方式保留。";
+    plannerMessage = "這個 Date 的日期已經過了，行程以唯讀方式保留。";
+  } else if (isPending && isOrganizer) {
+    plannerMessage = "邀請還在等待回覆，你可以先把行程排好。";
   }
 
   return (
     <div>
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
-          {readOnlyMessage && (
+          {plannerMessage && (
             <div
               className="
                 rounded-[var(--radius-md)]
@@ -103,12 +108,17 @@ export default async function DatePlanner({ details }: DatePlannerProps) {
                 py-3
               "
             >
-              <p className="text-sm text-[var(--muted)]">{readOnlyMessage}</p>
+              <p className="text-sm text-[var(--muted)]">{plannerMessage}</p>
             </div>
           )}
         </div>
 
-        {canCancel && <CancelDateButton dateId={date.id} />}
+        {canCancel &&
+          (isPending ? (
+            <CancelDateButton dateId={date.id} mode="withdraw" />
+          ) : (
+            <CancelDateButton dateId={date.id} />
+          ))}
       </div>
 
       <div className="space-y-14">

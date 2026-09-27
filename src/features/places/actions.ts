@@ -89,7 +89,7 @@ export async function updatePlace(formData: FormData) {
   revalidatePath("/places");
   revalidatePath(`/places/${placeId}`);
 
-  redirect(`/places/${placeId}`);
+  redirect(`/places`);
 }
 
 export async function deletePlace(formData: FormData) {

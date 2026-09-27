@@ -1,3 +1,5 @@
+import type { PointerEventHandler } from "react";
+
 import Link from "next/link";
 
 import ItineraryActions from "@/features/dates/components/ItineraryActions";
@@ -22,6 +24,10 @@ type ItineraryCardProps = {
   minutesUntilStart?: number | null;
 
   canEdit?: boolean;
+
+  dragDisabled?: boolean;
+
+  onDragHandlePointerDown?: PointerEventHandler<HTMLButtonElement>;
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -63,6 +69,8 @@ export default function ItineraryCard({
   isSoon = false,
   minutesUntilStart,
   canEdit = true,
+  dragDisabled = false,
+  onDragHandlePointerDown,
 }: ItineraryCardProps) {
   const borderClass = hasConflict
     ? "border-[var(--danger)]"
@@ -73,17 +81,17 @@ export default function ItineraryCard({
   const stateClass =
     timeState === "past"
       ? `
-        bg-[var(--surface-soft)]
-        opacity-55
-      `
+          bg-[var(--surface-soft)]
+          opacity-55
+        `
       : timeState === "current"
         ? `
-          bg-[var(--accent-soft)]
-          shadow-[0_8px_30px_rgba(38,35,31,0.05)]
-        `
+            bg-[var(--accent-soft)]
+            shadow-[0_8px_30px_rgba(38,35,31,0.05)]
+          `
         : `
-          bg-[var(--surface)]
-        `;
+            bg-[var(--surface)]
+          `;
 
   return (
     <article
@@ -98,22 +106,36 @@ export default function ItineraryCard({
     >
       <div className="flex gap-4">
         {canEdit ? (
-          <div
+          <button
+            type="button"
+            disabled={dragDisabled || !onDragHandlePointerDown}
+            onPointerDown={onDragHandlePointerDown}
+            aria-label="按住拖曳調整行程順序"
+            title="按住拖曳調整行程順序"
             className="
+              -ml-2
               flex
-              w-5
+              h-8
+              w-8
               shrink-0
-              cursor-grab
+              touch-none
+              select-none
               items-start
               justify-center
+              rounded-lg
               pt-1
               text-[var(--muted)]
+              transition
+              hover:bg-[var(--surface-soft)]
+              hover:text-[var(--foreground)]
               active:cursor-grabbing
+              disabled:cursor-default
+              disabled:opacity-40
+              enabled:cursor-grab
             "
-            aria-hidden="true"
           >
-            ⋮⋮
-          </div>
+            <span aria-hidden="true">⋮⋮</span>
+          </button>
         ) : (
           <div className="w-1 shrink-0" />
         )}

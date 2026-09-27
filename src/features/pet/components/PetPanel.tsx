@@ -25,13 +25,13 @@ import type {
 } from "@/features/pet/types";
 
 type PetPanelProps = {
+  petId: string;
+  currentUserId: string;
   name: string;
   initialState: PetViewState;
 };
 
 const MAX_MESSAGE_LENGTH = 500;
-
-const CONVERSATION_STORAGE_KEY = "pet-conversation-v1";
 
 const actionMessages: Record<PetAction, string> = {
   feed: "吃飽了一點",
@@ -64,7 +64,14 @@ function StatRow({ label, value }: { label: string; value: number }) {
   );
 }
 
-export default function PetPanel({ name, initialState }: PetPanelProps) {
+export default function PetPanel({
+  petId,
+  currentUserId,
+  name,
+  initialState,
+}: PetPanelProps) {
+  const conversationStorageKey = `pet-conversation-v2:${petId}:${currentUserId}`;
+
   const [state, setState] = useState(initialState);
 
   const [animation, setAnimation] = useState<PetAnimation>("idle");
@@ -92,7 +99,7 @@ export default function PetPanel({ name, initialState }: PetPanelProps) {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        const stored = window.sessionStorage.getItem(CONVERSATION_STORAGE_KEY);
+        const stored = window.sessionStorage.getItem(conversationStorageKey);
 
         if (!stored) {
           return;
@@ -124,14 +131,14 @@ export default function PetPanel({ name, initialState }: PetPanelProps) {
           setPetReply(lastPetReply.content);
         }
       } catch {
-        window.sessionStorage.removeItem(CONVERSATION_STORAGE_KEY);
+        window.sessionStorage.removeItem(conversationStorageKey);
       }
     }, 0);
 
     return () => {
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [conversationStorageKey]);
 
   function interact(action: PetAction) {
     if (isInteractionPending || isTalking) {
@@ -215,7 +222,7 @@ export default function PetPanel({ name, initialState }: PetPanelProps) {
       setConversation(nextConversation);
 
       window.sessionStorage.setItem(
-        CONVERSATION_STORAGE_KEY,
+        conversationStorageKey,
         JSON.stringify(nextConversation),
       );
       setPetPose(result.reply.pose);
