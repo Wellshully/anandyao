@@ -1,0 +1,777 @@
+===== PET STUDY PROVIDER =====
+import "server-only";
+
+import { siteConfig } from "@/config/site";
+import { createClient } from "@/lib/supabase/server";
+
+import type { PetStudyAssignmentContextItem, PetStudyContext } from "../types";
+
+const MAX_OVERDUE = 5;
+const MAX_UPCOMING = 8;
+
+/*
+ * Convert a Date into YYYY-MM-DD using the
+ * application's configured timezone.
+ *
+ * This is important because Supabase timestamps
+ * are normally stored in UTC, while "today" for
+ * the user is Asia/Taipei.
+ */
+function getDateKey(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: siteConfig.timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  if (!year || !month || !day) {
+    throw new Error("Failed to calculate Study date.");
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+export async function getPetStudyContext(): Promise<PetStudyContext> {
+  const supabase = await createClient();
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+
+  const now = new Date();
+  const today = getDateKey(now);
+
+  const emptyContext: PetStudyContext = {
+    currentDate: today,
+    timeZone: siteConfig.timeZone,
+    dueToday: [],
+    overdue: [],
+    upcoming: [],
+  };
+
+  /*
+   * Study data belongs to the currently
+   * authenticated user only.
+   */
+  if (authError || !authData.user) {
+    return emptyContext;
+  }
+
+  const userId = authData.user.id;
+
+  /*
+   * study_assignments is treated as the current
+   * state of assignments.
+   *
+   * The Study sync process upserts assignments
+   * using user_id + cool_assignment_id, so we do
+   * not filter by synced_at here.
+   */
+  const { data: assignments, error } = await supabase
+    .from("study_assignments")
+    .select(
+      `
+        title,
+        course_name,
+        due_at,
+        submitted,
+        late,
+        missing
+      `,
+    )
+    .eq("user_id", userId)
+    .eq("submitted", false)
+    .not("due_at", "is", null)
+    .order("due_at", {
+      ascending: true,
+    })
+    .limit(100);
+
+  if (error) {
+    throw new Error(
+      `Failed to load Study assignments for pet: ${error.message}`,
+    );
+  }
+
+  /*
+   * Convert database rows into the smaller,
+   * explicit structure that can be given to
+   * the pet's LLM context.
+   */
+  const items: PetStudyAssignmentContextItem[] = (assignments ?? [])
+    .filter(
+      (
+        assignment,
+      ): assignment is typeof assignment & {
+        due_at: string;
+      } => assignment.due_at !== null,
+    )
+    .map((assignment) => ({
+      title: assignment.title,
+      courseName: assignment.course_name ?? "Unknown course",
+      dueAt: assignment.due_at,
+
+      late: assignment.late,
+      missing: assignment.missing,
+
+      /*
+       * deadlinePassed is different from "overdue".
+       *
+       * Example:
+       * Today is 9/27.
+       * Assignment deadline was 9/27 15:00.
+       *
+       * It still belongs to dueToday, but the
+       * deadline itself has already passed.
+       */
+      deadlinePassed: new Date(assignment.due_at).getTime() <= now.getTime(),
+    }));
+
+  /*
+   * Assignments whose due date is today.
+   *
+   * Even if the exact deadline has already passed,
+   * they remain in dueToday. deadlinePassed tells
+   * the LLM whether the deadline time has passed.
+   */
+  const dueToday = items.filter(
+    (assignment) => getDateKey(new Date(assignment.dueAt)) === today,
+  );
+
+  /*
+   * Assignments whose due DATE is before today.
+   *
+   * Sort newest overdue assignments first so the
+   * most relevant ones are sent to the LLM.
+   */
+  const overdue = items
+    .filter((assignment) => {
+      const dueDate = getDateKey(new Date(assignment.dueAt));
+
+      return dueDate < today;
+    })
+    .sort((a, b) => new Date(b.dueAt).getTime() - new Date(a.dueAt).getTime())
+    .slice(0, MAX_OVERDUE);
+
+  /*
+   * Future assignments.
+   *
+   * The Supabase query already orders due_at
+   * ascending, so the nearest deadlines appear
+   * first.
+   */
+  const upcoming = items
+    .filter((assignment) => {
+      const dueDate = getDateKey(new Date(assignment.dueAt));
+
+      return dueDate > today;
+    })
+    .slice(0, MAX_UPCOMING);
+
+  return {
+    currentDate: today,
+    timeZone: siteConfig.timeZone,
+    dueToday,
+    overdue,
+    upcoming,
+  };
+}
+
+===== PET DATES PROVIDER =====
+import "server-only";
+
+import { siteConfig } from "@/config/site";
+
+import { getDate } from "@/features/dates/lib/get-date";
+import { getDates } from "@/features/dates/lib/get-dates";
+
+import type { PetDateContextItem, PetDatesContext } from "../types";
+
+const MAX_PAST_DATES = 3;
+const MAX_UPCOMING_DATES = 5;
+
+function getTodayKey() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: siteConfig.timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  if (!year || !month || !day) {
+    throw new Error("Failed to calculate current date.");
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+function getTemporalStatus(
+  startDate: string,
+  endDate: string,
+  today: string,
+): PetDateContextItem["temporalStatus"] {
+  if (endDate < today) {
+    return "past";
+  }
+
+  if (startDate > today) {
+    return "upcoming";
+  }
+
+  return "current";
+}
+
+export async function getPetDatesContext(): Promise<PetDatesContext> {
+  const dates = await getDates();
+  const today = getTodayKey();
+
+  if (dates.length === 0) {
+    return {
+      currentDate: today,
+      timeZone: siteConfig.timeZone,
+      total: 0,
+      items: [],
+    };
+  }
+
+  const past = dates
+    .filter(({ date }) => date.end_date < today)
+    .sort((a, b) => b.date.end_date.localeCompare(a.date.end_date))
+    .slice(0, MAX_PAST_DATES);
+
+  const currentAndUpcoming = dates
+    .filter(({ date }) => date.end_date >= today)
+    .sort((a, b) => a.date.start_date.localeCompare(b.date.start_date))
+    .slice(0, MAX_UPCOMING_DATES);
+
+  const selected = [...past, ...currentAndUpcoming];
+
+  const details = await Promise.all(
+    selected.map(({ date }) => getDate(date.id)),
+  );
+
+  const items: PetDateContextItem[] = details
+    .filter((detail): detail is NonNullable<typeof detail> => detail !== null)
+    .map((detail) => ({
+      title: detail.date.title,
+      description: detail.date.description,
+      kind: detail.date.kind,
+      status: detail.date.status,
+
+      startDate: detail.date.start_date,
+      endDate: detail.date.end_date,
+
+      temporalStatus: getTemporalStatus(
+        detail.date.start_date,
+        detail.date.end_date,
+        today,
+      ),
+
+      participants: detail.participants.map(
+        (participant) => participant.displayName,
+      ),
+
+      days: detail.days.map(({ day, items }) => ({
+        date: day.date,
+        dayNumber: day.day_number,
+        title: day.title,
+        note: day.note,
+
+        items: items.map((item) => ({
+          type: item.item_type,
+          title: item.title,
+          description: item.description,
+          locationName: item.location_name,
+          address: item.address,
+          fixedStartTime: item.fixed_start_time,
+        })),
+      })),
+    }));
+
+  return {
+    currentDate: today,
+    timeZone: siteConfig.timeZone,
+    total: dates.length,
+    items,
+  };
+}
+
+===== PET CONTEXT TYPES =====
+export type AppContextSource = "places" | "dates" | "study";
+export type PetPlaceContextItem = {
+  name: string;
+  status: string;
+  statusLabel: string;
+  address: string | null;
+  note: string | null;
+  visitedOn: string | null;
+};
+
+export type PetDateItineraryItem = {
+  type: string;
+  title: string;
+  description: string | null;
+  locationName: string | null;
+  address: string | null;
+  fixedStartTime: string | null;
+};
+
+export type PetDateDayContext = {
+  date: string;
+  dayNumber: number;
+  title: string | null;
+  note: string | null;
+  items: PetDateItineraryItem[];
+};
+
+export type PetDateContextItem = {
+  title: string;
+  description: string | null;
+  temporalStatus: "past" | "current" | "upcoming";
+  kind: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  participants: string[];
+  days: PetDateDayContext[];
+};
+export type PetPlacesContext = {
+  total: number;
+
+  wantToGo: PetPlaceContextItem[];
+
+  visited: PetPlaceContextItem[];
+
+  revisit: PetPlaceContextItem[];
+};
+export type PetDatesContext = {
+  currentDate: string;
+  timeZone: string;
+  total: number;
+  items: PetDateContextItem[];
+};
+export type PetStudyAssignmentContextItem = {
+  title: string;
+  courseName: string;
+  dueAt: string;
+  late: boolean;
+  missing: boolean;
+  deadlinePassed: boolean;
+};
+export type PetStudyContext = {
+  currentDate: string;
+  timeZone: string;
+
+  dueToday: PetStudyAssignmentContextItem[];
+  overdue: PetStudyAssignmentContextItem[];
+  upcoming: PetStudyAssignmentContextItem[];
+};
+export type PetAppContext = {
+  places?: PetPlacesContext;
+  dates?: PetDatesContext;
+  study?: PetStudyContext;
+};
+
+===== TODAY OVERVIEW =====
+import "server-only";
+
+import { createClient } from "@/lib/supabase/server";
+
+import { requireSpace } from "@/lib/space/require-space";
+
+import { requireUser } from "@/lib/auth/require-user";
+
+import { getTaipeiDateKey } from "@/lib/time/taipei-time";
+
+import { calculateItinerarySchedule } from "@/features/dates/lib/calculate-itinerary-schedule";
+
+import type { TodayItem } from "@/features/today/types";
+import { ensureStudyFresh } from "@/features/study/lib/ensure-study-fresh";
+function buildTimestamp(date: string, time: string) {
+  return new Date(`${date}T${time}+08:00`).getTime();
+}
+
+function dayStartTimestamp(date: string) {
+  return new Date(`${date}T00:00:00+08:00`).getTime();
+}
+
+function getStudyWindow(today: string) {
+  const start = new Date(`${today}T00:00:00+08:00`).getTime();
+
+  /*
+   * Today + the following 7 days.
+   *
+   * Example:
+   * 9/24 → through 10/1 23:59:59.999
+   */
+  const end = start + 8 * 24 * 60 * 60 * 1000 - 1;
+
+  return {
+    startIso: new Date(start).toISOString(),
+
+    endIso: new Date(end).toISOString(),
+  };
+}
+
+async function getStudyReminderItems(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  today: string,
+): Promise<TodayItem[]> {
+  const { startIso, endIso } = getStudyWindow(today);
+
+  const [assignmentsResult, announcementsResult, mailResult] =
+    await Promise.all([
+      supabase
+        .from("study_assignments")
+        .select(
+          `
+            id,
+            title,
+            course_name,
+            due_at
+          `,
+        )
+        .eq("user_id", userId)
+        .eq("submitted", false)
+        .not("due_at", "is", null)
+        .gte("due_at", startIso)
+        .lte("due_at", endIso)
+        .order("due_at", {
+          ascending: true,
+        }),
+
+      supabase
+        .from("study_announcements")
+        .select("id", {
+          count: "exact",
+
+          head: true,
+        })
+        .eq("user_id", userId)
+        .is("seen_at", null),
+
+      supabase
+        .from("study_mail_messages")
+        .select("id", {
+          count: "exact",
+
+          head: true,
+        })
+        .eq("user_id", userId)
+        .is("seen_at", null)
+        .not("subject", "like", "「校內訊息」%"),
+    ]);
+
+  /*
+   * Study reminders should never make
+   * the whole Today panel unavailable.
+   */
+  if (assignmentsResult.error) {
+    console.warn(
+      "Failed to load Study assignments:",
+      assignmentsResult.error.message,
+    );
+  }
+
+  if (announcementsResult.error) {
+    console.warn(
+      "Failed to load Study announcements:",
+      announcementsResult.error.message,
+    );
+  }
+
+  if (mailResult.error) {
+    console.warn("Failed to load Study mail:", mailResult.error.message);
+  }
+
+  const items: TodayItem[] = [];
+
+  if (!assignmentsResult.error) {
+    for (const assignment of assignmentsResult.data ?? []) {
+      if (!assignment.due_at) {
+        continue;
+      }
+
+      const dueAt = new Date(assignment.due_at).getTime();
+
+      items.push({
+        id: assignment.id,
+
+        kind: "study_assignment",
+
+        title: assignment.title,
+
+        subtitle: assignment.course_name ?? "NTU COOL",
+
+        startAt: dueAt,
+
+        endAt: dueAt,
+
+        href: `/study/assignments/${assignment.id}`,
+
+        completed: false,
+      });
+    }
+  }
+
+  const announcementCount = announcementsResult.error
+    ? 0
+    : (announcementsResult.count ?? 0);
+
+  if (announcementCount > 0) {
+    items.push({
+      id: "study-announcements",
+
+      kind: "study_announcement",
+
+      title: `有 ${announcementCount} 則新公告`,
+
+      subtitle: "NTU COOL",
+
+      startAt: null,
+
+      endAt: null,
+
+      href: "/study?tab=announcements",
+
+      completed: false,
+    });
+  }
+
+  const mailCount = mailResult.error ? 0 : (mailResult.count ?? 0);
+
+  if (mailCount > 0) {
+    items.push({
+      id: "study-mail",
+
+      kind: "study_mail",
+
+      title: `有 ${mailCount} 封新信`,
+
+      subtitle: "NTU Mail",
+
+      startAt: null,
+
+      endAt: null,
+
+      href: "/study/inbox",
+
+      completed: false,
+    });
+  }
+
+  return items;
+}
+
+export async function getTodayOverview(): Promise<TodayItem[]> {
+  await ensureStudyFresh();
+  const [supabase, space, user] = await Promise.all([
+    createClient(),
+    requireSpace(),
+    requireUser(),
+  ]);
+
+  const today = getTaipeiDateKey(Date.now());
+
+  const [plansResult, daysResult, studyItems] = await Promise.all([
+    supabase
+      .from("personal_plans")
+      .select("*")
+      .eq("space_id", space.id)
+      .eq("user_id", user.id)
+      .eq("plan_date", today),
+
+    supabase
+      .from("date_days")
+      .select("*")
+      .eq("space_id", space.id)
+      .eq("date", today),
+
+    getStudyReminderItems(supabase, user.id, today),
+  ]);
+
+  if (plansResult.error) {
+    throw new Error(
+      `Failed to load personal plans: ${plansResult.error.message}`,
+    );
+  }
+
+  if (daysResult.error) {
+    throw new Error(
+      `Failed to load today's date days: ${daysResult.error.message}`,
+    );
+  }
+
+  const personalItems: TodayItem[] = plansResult.data.map((plan) => {
+    const startAt = plan.start_time
+      ? buildTimestamp(plan.plan_date, plan.start_time.slice(0, 8))
+      : null;
+
+    const endAt =
+      startAt !== null ? startAt + plan.duration_minutes * 60_000 : null;
+
+    return {
+      id: plan.id,
+
+      kind: "personal",
+
+      title: plan.title,
+
+      subtitle: "自己的計畫",
+
+      startAt,
+
+      endAt,
+
+      href: null,
+
+      completed: Boolean(plan.completed_at),
+    };
+  });
+
+  const dateItems: TodayItem[] = [];
+
+  if (daysResult.data.length > 0) {
+    const dateIds = Array.from(
+      new Set(daysResult.data.map((day) => day.date_id)),
+    );
+
+    const { data: dates, error: datesError } = await supabase
+      .from("dates")
+      .select("id, title, status")
+      .in("id", dateIds)
+      .eq("space_id", space.id)
+      .eq("status", "accepted");
+
+    if (datesError) {
+      throw new Error(`Failed to load today's dates: ${datesError.message}`);
+    }
+
+    if (dates.length > 0) {
+      const acceptedDateMap = new Map(dates.map((date) => [date.id, date]));
+
+      const acceptedDays = daysResult.data.filter((day) =>
+        acceptedDateMap.has(day.date_id),
+      );
+
+      if (acceptedDays.length > 0) {
+        const dayIds = acceptedDays.map((day) => day.id);
+
+        const { data: itineraryItems, error: itineraryError } = await supabase
+          .from("date_itinerary_items")
+          .select("*")
+          .eq("space_id", space.id)
+          .in("date_day_id", dayIds)
+          .order("sort_order", {
+            ascending: true,
+          });
+
+        if (itineraryError) {
+          throw new Error(
+            `Failed to load today's itinerary: ${itineraryError.message}`,
+          );
+        }
+
+        for (const day of acceptedDays) {
+          const date = acceptedDateMap.get(day.date_id);
+
+          if (!date) {
+            continue;
+          }
+
+          const items = itineraryItems.filter(
+            (item) => item.date_day_id === day.id,
+          );
+
+          const scheduled = calculateItinerarySchedule(
+            day.planning_start_time,
+            items,
+          );
+
+          const dayStart = dayStartTimestamp(day.date);
+
+          for (const scheduledItem of scheduled) {
+            dateItems.push({
+              id: scheduledItem.item.id,
+
+              kind: "date",
+
+              title: scheduledItem.item.title,
+
+              subtitle: date.title,
+
+              startAt: dayStart + scheduledItem.startMinutes * 60_000,
+
+              endAt: dayStart + scheduledItem.endMinutes * 60_000,
+
+              href: `/dates/${date.id}`,
+
+              completed: false,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return sortTodayItems([...personalItems, ...dateItems, ...studyItems]);
+}
+
+function sortTodayItems(items: TodayItem[]) {
+  return [...items].sort((a, b) => {
+    if (a.startAt === null && b.startAt === null) {
+      return a.title.localeCompare(b.title, "zh-TW");
+    }
+
+    if (a.startAt === null) {
+      return 1;
+    }
+
+    if (b.startAt === null) {
+      return -1;
+    }
+
+    return a.startAt - b.startAt;
+  });
+}
+
+===== NOTIFICATION FILES =====
+src/features/notifications/actions.ts
+src/features/notifications/components/NotificationSettings.tsx
+src/features/notifications/lib/run-notification-reminders.ts
+src/features/notifications/lib/send-push-to-user.ts
+src/features/notifications/lib/send-web-push.ts
+
+===== PUSH RELATED SOURCE =====
+src/features/notifications/lib/send-push-to-user.ts:6:  getWebPushStatusCode,
+src/features/notifications/lib/send-push-to-user.ts:7:  sendWebPush,
+src/features/notifications/lib/send-push-to-user.ts:8:} from "@/features/notifications/lib/send-web-push";
+src/features/notifications/lib/send-push-to-user.ts:10:import type { PushPayload } from "@/features/notifications/lib/send-web-push";
+src/features/notifications/lib/send-push-to-user.ts:29:    .from("push_subscriptions")
+src/features/notifications/lib/send-push-to-user.ts:52:      await sendWebPush(
+src/features/notifications/lib/send-push-to-user.ts:65:      const statusCode = getWebPushStatusCode(cause);
+src/features/notifications/lib/send-push-to-user.ts:76:          .from("push_subscriptions")
+src/features/notifications/lib/send-web-push.ts:3:import webPush from "web-push";
+src/features/notifications/lib/send-web-push.ts:35:export async function sendWebPush(
+src/features/notifications/lib/send-web-push.ts:41:  return webPush.sendNotification(
+src/features/notifications/lib/send-web-push.ts:76:export function getWebPushStatusCode(cause: unknown) {
+src/features/notifications/actions.ts:8:  getWebPushStatusCode,
+src/features/notifications/actions.ts:9:  sendWebPush,
+src/features/notifications/actions.ts:10:} from "@/features/notifications/lib/send-web-push";
+src/features/notifications/actions.ts:56:    const { error } = await supabase.from("push_subscriptions").upsert(
+src/features/notifications/actions.ts:108:      .from("push_subscriptions")
+src/features/notifications/actions.ts:141:        await sendWebPush(
+src/features/notifications/actions.ts:160:        const statusCode = getWebPushStatusCode(cause);
+src/features/notifications/actions.ts:170:            .from("push_subscriptions")
+
+===== CRON ROUTES =====
+
+===== VERCEL JSON =====

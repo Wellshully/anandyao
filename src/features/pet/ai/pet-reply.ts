@@ -46,6 +46,23 @@ export const petTaskCandidateSchema = z.object({
   dueAt: z.string().max(64).nullable(),
 });
 
+export const petTaskActionSchema = z.object({
+  action: z.enum(["create", "complete", "cancel"]),
+
+  /*
+   * create:
+   * taskId = null
+   * task = task data
+   *
+   * complete / cancel:
+   * taskId = existing pending task id
+   * task = null
+   */
+  taskId: z.string().max(64).nullable(),
+
+  task: petTaskCandidateSchema.nullable(),
+});
+
 export const petReplySchema = z.object({
   reply: z.string().min(1).max(160),
 
@@ -53,7 +70,7 @@ export const petReplySchema = z.object({
 
   memory: petMemoryCandidateSchema.nullable(),
 
-  task: petTaskCandidateSchema.nullable(),
+  taskActions: z.array(petTaskActionSchema).max(3),
 });
 
 export type PetPose = z.infer<typeof petPoseSchema>;
@@ -65,5 +82,7 @@ export type PetMemorySubject = z.infer<typeof petMemorySubjectSchema>;
 export type PetMemoryCandidate = z.infer<typeof petMemoryCandidateSchema>;
 
 export type PetTaskCandidate = z.infer<typeof petTaskCandidateSchema>;
+
+export type PetTaskActionCandidate = z.infer<typeof petTaskActionSchema>;
 
 export type PetReply = z.infer<typeof petReplySchema>;

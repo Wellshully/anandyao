@@ -10,8 +10,10 @@ import {
 } from "@/features/pet/ai/conversation";
 
 import { talkToPet } from "@/features/pet/ai/talk-to-pet";
+
 import { savePetMemory } from "@/features/pet/ai/save-pet-memory";
-import { savePetTask } from "@/features/pet/ai/save-pet-task";
+
+import { applyPetTaskAction } from "@/features/pet/ai/apply-pet-task-action";
 
 import type { PetReply } from "@/features/pet/ai/pet-reply";
 
@@ -49,11 +51,7 @@ export async function talkToPetAction(
     const reply = await talkToPet(message, safeConversation);
 
     /*
-     * Long-term memory and task persistence are
-     * best-effort side effects.
-     *
-     * The conversation itself should still succeed
-     * if either database write fails.
+     * Memory persistence is best-effort.
      */
     if (reply.memory) {
       try {
@@ -66,12 +64,21 @@ export async function talkToPetAction(
       }
     }
 
-    if (reply.task) {
+    /*
+     * One message may contain multiple task changes.
+     *
+     * Example:
+     * "不是買洗衣精，是買洗髮精"
+     *
+     * -> cancel old task
+     * -> create new task
+     */
+    for (const taskAction of reply.taskActions) {
       try {
-        await savePetTask(reply.task);
+        await applyPetTaskAction(taskAction);
       } catch (cause) {
         console.error(
-          "Failed to save pet task:",
+          "Failed to apply pet task action:",
           cause instanceof Error ? cause.message : cause,
         );
       }

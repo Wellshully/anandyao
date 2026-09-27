@@ -7,5 +7,5 @@ export const AI_CONFIG = {
 
   maxUserMessageLength: 500,
 
-  maxOutputTokens: 180,
+  maxOutputTokens: 500,
 } as const;

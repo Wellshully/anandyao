@@ -131,9 +131,12 @@ export async function buildPetContext(memoryQuery: string) {
 
     const noteLabel = task.note ? `；補充：${task.note}` : "";
 
-    return `- ${task.title}；期限：${dueLabel}${noteLabel}`;
+    return [
+      `- taskId: ${task.id}`,
+      `  標題：${task.title}`,
+      `  期限：${dueLabel}${noteLabel}`,
+    ].join("\n");
   });
-
   const state = pet.state;
 
   return `
@@ -175,5 +178,10 @@ ${
 待辦隱私規則：
 - 上面的待辦只屬於目前正在和你說話的主人。
 - 不可以把這些待辦當成另一位主人的事情。
+
+待辦 ID 規則：
+- taskId 是系統內部識別碼。
+- taskId 只能用於 taskActions 的 complete / cancel 操作。
+- 絕對不要在正常回答中向主人顯示 taskId。
 `.trim();
 }
