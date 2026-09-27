@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 
 import { selectPetMemories } from "@/features/pet/ai/select-pet-memories";
+import { getPendingPetTasks } from "@/features/pet/ai/get-pending-pet-tasks";
+
 import { getPet } from "@/features/pet/lib/get-pet";
 
 const EVENT_LABELS: Record<string, string> = {
@@ -11,6 +13,22 @@ const EVENT_LABELS: Record<string, string> = {
   pet: "摸摸",
   play: "玩耍",
 };
+
+function formatTaskDueAt(dueAt: string | null) {
+  if (!dueAt) {
+    return "未指定期限";
+  }
+
+  return new Intl.DateTimeFormat("zh-TW", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(dueAt));
+}
 
 export async function buildPetContext(memoryQuery: string) {
   const user = await requireUser();
@@ -30,14 +48,22 @@ export async function buildPetContext(memoryQuery: string) {
   }
 
   /*
-   * Select only memories that are useful for
-   * the current conversation.
+   * Long-term memories are locally selected
+   * according to the current conversation.
+   *
+   * Tasks are different: they are explicit,
+   * structured pending responsibilities belonging
+   * only to the current logged-in user.
    */
-  const memories = await selectPetMemories({
-    petId: pet.id,
-    currentUserId: user.id,
-    query: memoryQuery,
-  });
+  const [memories, pendingTasks] = await Promise.all([
+    selectPetMemories({
+      petId: pet.id,
+      currentUserId: user.id,
+      query: memoryQuery,
+    }),
+
+    getPendingPetTasks(),
+  ]);
 
   /*
    * Recent physical interactions are separate
@@ -100,6 +126,14 @@ export async function buildPetContext(memoryQuery: string) {
     return `- [${importanceLabel}] ${memory.subjectName}：${memory.content}`;
   });
 
+  const taskLines = pendingTasks.map((task) => {
+    const dueLabel = formatTaskDueAt(task.dueAt);
+
+    const noteLabel = task.note ? `；補充：${task.note}` : "";
+
+    return `- ${task.title}；期限：${dueLabel}${noteLabel}`;
+  });
+
   const state = pet.state;
 
   return `
@@ -130,5 +164,16 @@ ${
     ? memoryLines.join("\n")
     : "- 目前沒有和這個話題直接相關的長期記憶"
 }
+
+目前正在和你說話的主人自己的待辦：
+${
+  taskLines.length > 0
+    ? taskLines.join("\n")
+    : "- 目前沒有萌蛋替這位主人記住的待辦"
+}
+
+待辦隱私規則：
+- 上面的待辦只屬於目前正在和你說話的主人。
+- 不可以把這些待辦當成另一位主人的事情。
 `.trim();
 }

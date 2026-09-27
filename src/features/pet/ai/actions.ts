@@ -8,14 +8,18 @@ import {
   trimPetConversation,
   type PetConversationMessage,
 } from "@/features/pet/ai/conversation";
+
 import { talkToPet } from "@/features/pet/ai/talk-to-pet";
 import { savePetMemory } from "@/features/pet/ai/save-pet-memory";
+import { savePetTask } from "@/features/pet/ai/save-pet-task";
+
 import type { PetReply } from "@/features/pet/ai/pet-reply";
 
 const conversationSchema = z
   .array(
     z.object({
       role: z.enum(["user", "pet"]),
+
       content: z.string().min(1).max(500),
     }),
   )
@@ -24,10 +28,12 @@ const conversationSchema = z
 type TalkToPetResult =
   | {
       success: true;
+
       reply: PetReply;
     }
   | {
       success: false;
+
       error: string;
     };
 
@@ -42,6 +48,13 @@ export async function talkToPetAction(
 
     const reply = await talkToPet(message, safeConversation);
 
+    /*
+     * Long-term memory and task persistence are
+     * best-effort side effects.
+     *
+     * The conversation itself should still succeed
+     * if either database write fails.
+     */
     if (reply.memory) {
       try {
         await savePetMemory(reply.memory);
@@ -52,6 +65,18 @@ export async function talkToPetAction(
         );
       }
     }
+
+    if (reply.task) {
+      try {
+        await savePetTask(reply.task);
+      } catch (cause) {
+        console.error(
+          "Failed to save pet task:",
+          cause instanceof Error ? cause.message : cause,
+        );
+      }
+    }
+
     return {
       success: true,
       reply,
@@ -66,6 +91,7 @@ export async function talkToPetAction(
 
     return {
       success: false,
+
       error:
         cause instanceof Error
           ? cause.message

@@ -74,9 +74,13 @@ function SortableItineraryItem({
       value={item.id}
       dragListener={false}
       dragControls={dragControls}
+      dragMomentum={false}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className="list-none"
+      className="
+    list-none
+    select-none
+  "
       whileDrag={{
         scale: 1.015,
       }}

@@ -1,5 +1,3 @@
-import type { PointerEventHandler } from "react";
-
 import Link from "next/link";
 
 import ItineraryActions from "@/features/dates/components/ItineraryActions";
@@ -24,10 +22,9 @@ type ItineraryCardProps = {
   minutesUntilStart?: number | null;
 
   canEdit?: boolean;
-
   dragDisabled?: boolean;
 
-  onDragHandlePointerDown?: PointerEventHandler<HTMLButtonElement>;
+  onDragHandlePointerDown?: (event: PointerEvent) => void;
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -109,32 +106,57 @@ export default function ItineraryCard({
           <button
             type="button"
             disabled={dragDisabled || !onDragHandlePointerDown}
-            onPointerDown={onDragHandlePointerDown}
+            onPointerDown={(event) => {
+              if (dragDisabled || !onDragHandlePointerDown) {
+                return;
+              }
+
+              /*
+               * Important for phones:
+               * do not let the browser interpret this
+               * gesture as page scrolling.
+               */
+              event.preventDefault();
+
+              onDragHandlePointerDown(event.nativeEvent);
+            }}
             aria-label="按住拖曳調整行程順序"
             title="按住拖曳調整行程順序"
+            style={{
+              touchAction: "none",
+              WebkitUserSelect: "none",
+            }}
             className="
-              -ml-2
-              flex
-              h-8
-              w-8
-              shrink-0
-              touch-none
-              select-none
-              items-start
-              justify-center
-              rounded-lg
-              pt-1
-              text-[var(--muted)]
-              transition
-              hover:bg-[var(--surface-soft)]
-              hover:text-[var(--foreground)]
-              active:cursor-grabbing
-              disabled:cursor-default
-              disabled:opacity-40
-              enabled:cursor-grab
-            "
+    -ml-2
+    flex
+    h-11
+    w-11
+    shrink-0
+    select-none
+    items-center
+    justify-center
+    rounded-xl
+    text-[var(--muted)]
+    transition
+    hover:bg-[var(--surface-soft)]
+    hover:text-[var(--foreground)]
+    active:bg-[var(--surface-soft)]
+    active:cursor-grabbing
+    disabled:cursor-default
+    disabled:opacity-40
+    enabled:cursor-grab
+  "
           >
-            <span aria-hidden="true">⋮⋮</span>
+            <span
+              aria-hidden="true"
+              className="
+      pointer-events-none
+      text-lg
+      leading-none
+    "
+            >
+              ⋮⋮
+            </span>
           </button>
         ) : (
           <div className="w-1 shrink-0" />
