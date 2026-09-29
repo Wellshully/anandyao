@@ -10,8 +10,8 @@ import { buildPetContext } from "@/features/pet/ai/build-pet-context";
 
 import { buildAppContext } from "@/features/pet/ai/context/build-app-context";
 import {
+  getPendingTaskQueryScope,
   isRecentActivityQuestion,
-  shouldLoadPendingTaskContext,
 } from "@/features/pet/ai/context/intent";
 
 import {
@@ -149,8 +149,13 @@ export async function talkToPet(
   const recentActivityQuestion =
     isRecentActivityQuestion(normalized);
 
+  const taskQueryScope =
+    getPendingTaskQueryScope(
+      normalized,
+    );
+
   const includePendingTaskContext =
-    shouldLoadPendingTaskContext(normalized);
+    taskQueryScope !== null;
 
   /*
    * Context boundaries:
@@ -223,6 +228,48 @@ ${appContext}
 - 時間：${currentLocalTime.time}
 - 星期：${currentLocalTime.weekday}
 - 時區：${currentLocalTime.timeZone}
+
+--------------------------------
+待辦查詢範圍
+--------------------------------
+
+這一輪的 taskQueryScope：
+${taskQueryScope ?? "none"}
+
+如果 taskQueryScope 是查詢型：
+
+today：
+只回答今天相關的 pending tasks。
+
+tomorrow：
+必須完整回答所有 temporalState = tomorrow 的 pending tasks。
+如果有兩件，就必須包含兩件。
+不要因為其中一件剛出現在最近對話，就忽略其他資料庫中的 task。
+
+week：
+回答本週相關的所有 pending tasks。
+依目前真實日期與每筆 task 的系統時間判斷。
+不要只挑其中一兩件代表。
+
+all：
+回答目前所有有效 pending tasks。
+
+mutation：
+表示主人主要是在完成、取消或修改待辦，
+不需要把所有待辦重新列出。
+
+重要：
+
+當主人問「我明天要幹嘛？」、
+「我今天要做什麼？」、
+「我這週有什麼事？」這類問題時，
+
+系統提供的 pending task context
+是目前主人待辦的權威資料來源。
+
+如果有多筆符合詢問時間範圍，
+回答必須涵蓋所有符合項目，
+不能只根據最近對話挑一筆。
 
 --------------------------------
 時間理解模型
