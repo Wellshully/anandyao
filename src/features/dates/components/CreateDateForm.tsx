@@ -113,7 +113,7 @@ export default function CreateDateForm() {
                         ? `
                           border-[var(--foreground)]
                           bg-[var(--foreground)]
-                          text-white
+                          text-[var(--on-foreground)]
                         `
                         : `
                           border-[var(--border)]
@@ -237,7 +237,7 @@ export default function CreateDateForm() {
           py-3
           text-sm
           font-medium
-          text-white
+          text-[var(--on-foreground)]
           disabled:opacity-50
         "
       >

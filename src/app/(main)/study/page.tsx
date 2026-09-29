@@ -150,7 +150,7 @@ function TabLink({
           active
             ? `
               bg-[var(--foreground)]
-              text-white
+              text-[var(--on-foreground)]
             `
             : `
               bg-[var(--surface-soft)]

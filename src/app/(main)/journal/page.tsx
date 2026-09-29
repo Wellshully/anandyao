@@ -41,14 +41,14 @@ export default async function JournalPage() {
     <section>
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-sm text-neutral-500">Things worth remembering</p>
+          <p className="text-sm text-[var(--muted)]">Things worth remembering</p>
 
           <h1 className="mt-1 text-3xl font-semibold">Journal</h1>
         </div>
 
         <Link
           href="/journal/new"
-          className="rounded-xl bg-[var(--foreground)] px-4 py-2 text-sm font-medium text-white"
+          className="rounded-xl bg-[var(--foreground)] px-4 py-2 text-sm font-medium text-[var(--on-foreground)]"
         >
           New entry
         </Link>
@@ -59,7 +59,7 @@ export default async function JournalPage() {
           <div className="flex items-baseline gap-2">
             <h2 className="text-xl font-medium">Drafts</h2>
 
-            <span className="text-sm text-neutral-400">{drafts.length}</span>
+            <span className="text-sm text-[var(--muted)]">{drafts.length}</span>
           </div>
 
           <div className="mt-4 space-y-3">
@@ -67,9 +67,9 @@ export default async function JournalPage() {
               <Link
                 key={entry.id}
                 href={`/journal/${entry.id}`}
-                className="block rounded-2xl border border-dashed border-neutral-300 bg-white p-5"
+                className="block rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-5"
               >
-                <p className="text-xs text-neutral-400">
+                <p className="text-xs text-[var(--muted)]">
                   Draft · {entry.entry_date}
                 </p>
 
@@ -84,12 +84,12 @@ export default async function JournalPage() {
         <div className="flex items-baseline gap-2">
           <h2 className="text-xl font-medium">Published</h2>
 
-          <span className="text-sm text-neutral-400">{published.length}</span>
+          <span className="text-sm text-[var(--muted)]">{published.length}</span>
         </div>
 
         {published.length === 0 ? (
-          <div className="mt-4 rounded-2xl border border-dashed border-neutral-300 p-10 text-center">
-            <p className="text-neutral-500">No published entries yet.</p>
+          <div className="mt-4 rounded-2xl border border-dashed border-[var(--border)] p-10 text-center">
+            <p className="text-[var(--muted)]">No published entries yet.</p>
           </div>
         ) : (
           <div className="mt-4 space-y-4">
@@ -97,13 +97,13 @@ export default async function JournalPage() {
               <Link
                 key={entry.id}
                 href={`/journal/${entry.id}`}
-                className="block rounded-2xl border border-neutral-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-sm"
+                className="block rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 transition hover:-translate-y-0.5 hover:shadow-sm"
               >
-                <p className="text-sm text-neutral-500">{entry.entry_date}</p>
+                <p className="text-sm text-[var(--muted)]">{entry.entry_date}</p>
 
                 <h3 className="mt-1 text-xl font-medium">{entry.title}</h3>
 
-                <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm text-neutral-600">
+                <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm text-[var(--muted)]">
                   {entry.content}
                 </p>
               </Link>

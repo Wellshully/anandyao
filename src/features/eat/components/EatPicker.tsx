@@ -198,7 +198,7 @@ export default function EatPicker({ areas, cuisines }: EatPickerProps) {
                         ? `
                           border-[var(--foreground)]
                           bg-[var(--foreground)]
-                          text-white
+                          text-[var(--on-foreground)]
                         `
                         : `
                           border-[var(--border)]
@@ -245,7 +245,7 @@ export default function EatPicker({ areas, cuisines }: EatPickerProps) {
                         ? `
                           border-[var(--foreground)]
                           bg-[var(--foreground)]
-                          text-white
+                          text-[var(--on-foreground)]
                         `
                         : `
                           border-[var(--border)]
@@ -304,7 +304,7 @@ export default function EatPicker({ areas, cuisines }: EatPickerProps) {
                         ? `
                           border-[var(--foreground)]
                           bg-[var(--foreground)]
-                          text-white
+                          text-[var(--on-foreground)]
                         `
                         : `
                           border-[var(--border)]
@@ -349,7 +349,7 @@ export default function EatPicker({ areas, cuisines }: EatPickerProps) {
                         ? `
                           border-[var(--foreground)]
                           bg-[var(--foreground)]
-                          text-white
+                          text-[var(--on-foreground)]
                         `
                         : `
                           border-[var(--border)]
@@ -387,7 +387,7 @@ export default function EatPicker({ areas, cuisines }: EatPickerProps) {
             py-3.5
             text-sm
             font-medium
-            text-white
+            text-[var(--on-foreground)]
             transition
             hover:opacity-90
             disabled:opacity-50
@@ -497,7 +497,7 @@ export default function EatPicker({ areas, cuisines }: EatPickerProps) {
                 py-2.5
                 text-sm
                 font-medium
-                text-white
+                text-[var(--on-foreground)]
                 transition
                 disabled:opacity-40
               "

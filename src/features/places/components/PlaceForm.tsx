@@ -40,7 +40,7 @@ export default function PlaceForm({
           name="name"
           defaultValue={place?.name ?? ""}
           required
-          className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
         />
       </div>
 
@@ -53,7 +53,7 @@ export default function PlaceForm({
           id="status"
           name="status"
           defaultValue={place?.status ?? "want_to_go"}
-          className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
         >
           {PLACE_STATUSES.map((status) => (
             <option key={status.value} value={status.value}>
@@ -73,7 +73,7 @@ export default function PlaceForm({
           name="address"
           defaultValue={place?.address ?? ""}
           placeholder="Optional"
-          className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
         />
       </div>
 
@@ -87,10 +87,10 @@ export default function PlaceForm({
           name="visitedOn"
           type="date"
           defaultValue={place?.visited_on ?? ""}
-          className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
         />
 
-        <p className="mt-1 text-xs text-neutral-500">
+        <p className="mt-1 text-xs text-[var(--muted)]">
           Leave empty if we haven&apos;t visited yet.
         </p>
       </div>
@@ -106,7 +106,7 @@ export default function PlaceForm({
           rows={6}
           defaultValue={place?.note ?? ""}
           placeholder="Why do we want to go?"
-          className="w-full resize-y rounded-xl border border-neutral-200 bg-white px-3 py-2"
+          className="w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
         />
       </div>
 

@@ -411,7 +411,7 @@ export default async function StudyCoursePage({ params }: PageProps) {
           px-5
           py-3
           text-sm
-          text-white
+          text-[var(--on-foreground)]
           transition
           hover:opacity-85
         "

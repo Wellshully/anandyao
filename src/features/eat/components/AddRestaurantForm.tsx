@@ -184,7 +184,7 @@ export default function AddRestaurantForm() {
                         ? `
                           border-[var(--foreground)]
                           bg-[var(--foreground)]
-                          text-white
+                          text-[var(--on-foreground)]
                         `
                         : `
                           border-[var(--border)]
@@ -274,7 +274,7 @@ export default function AddRestaurantForm() {
           py-3
           text-sm
           font-medium
-          text-white
+          text-[var(--on-foreground)]
           disabled:opacity-50
         "
       >

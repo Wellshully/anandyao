@@ -41,7 +41,7 @@ export default function JournalForm({
           name="title"
           defaultValue={entry?.title ?? ""}
           required
-          className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
         />
       </div>
 
@@ -56,7 +56,7 @@ export default function JournalForm({
           type="date"
           defaultValue={entry?.entry_date ?? ""}
           required
-          className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
         />
       </div>
 
@@ -69,7 +69,7 @@ export default function JournalForm({
           id="status"
           name="status"
           defaultValue={entry?.status ?? "draft"}
-          className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
         >
           {JOURNAL_STATUSES.map((status) => (
             <option key={status.value} value={status.value}>
@@ -85,7 +85,7 @@ export default function JournalForm({
             Content
           </label>
 
-          <span className="text-xs text-neutral-400">Markdown supported</span>
+          <span className="text-xs text-[var(--muted)]">Markdown supported</span>
         </div>
 
         <textarea
@@ -102,7 +102,7 @@ export default function JournalForm({
 
 - 第一件事
 - 第二件事`}
-          className="w-full resize-y rounded-xl border border-neutral-200 bg-white px-3 py-3 font-mono text-sm leading-6"
+          className="w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-3 font-mono text-sm leading-6"
         />
       </div>
 

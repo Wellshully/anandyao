@@ -7,24 +7,24 @@ type MarkdownContentProps = {
 
 export default function MarkdownContent({ content }: MarkdownContentProps) {
   return (
-    <div className="space-y-4 leading-7 text-neutral-700">
+    <div className="space-y-4 leading-7 text-[var(--foreground)]">
       <Markdown
         remarkPlugins={[remarkGfm]}
         components={{
           h1: ({ children }) => (
-            <h1 className="mt-8 text-3xl font-semibold text-neutral-950">
+            <h1 className="mt-8 text-3xl font-semibold text-[var(--foreground)]">
               {children}
             </h1>
           ),
 
           h2: ({ children }) => (
-            <h2 className="mt-8 text-2xl font-semibold text-neutral-950">
+            <h2 className="mt-8 text-2xl font-semibold text-[var(--foreground)]">
               {children}
             </h2>
           ),
 
           h3: ({ children }) => (
-            <h3 className="mt-6 text-xl font-semibold text-neutral-950">
+            <h3 className="mt-6 text-xl font-semibold text-[var(--foreground)]">
               {children}
             </h3>
           ),
@@ -40,7 +40,7 @@ export default function MarkdownContent({ content }: MarkdownContentProps) {
           ),
 
           blockquote: ({ children }) => (
-            <blockquote className="border-l-2 border-neutral-300 pl-4 text-neutral-500">
+            <blockquote className="border-l-2 border-[var(--border)] pl-4 text-[var(--muted)]">
               {children}
             </blockquote>
           ),
@@ -57,7 +57,7 @@ export default function MarkdownContent({ content }: MarkdownContentProps) {
           ),
 
           code: ({ children }) => (
-            <code className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-sm">
+            <code className="rounded bg-[var(--surface-soft)] px-1.5 py-0.5 font-mono text-sm">
               {children}
             </code>
           ),

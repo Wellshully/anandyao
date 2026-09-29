@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 
 import "./globals.css";
+
+import ThemeBootScript from "@/features/appearance/components/ThemeBootScript";
 const fontVariables = {
   "--font-sans":
     '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif',
@@ -24,8 +26,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-Hant" style={fontVariables}>
-      <body>{children}</body>
+    <html lang="zh-Hant" style={fontVariables} suppressHydrationWarning>
+      <body>
+        <ThemeBootScript />{children}</body>
     </html>
   );
 }

@@ -379,7 +379,7 @@ export default function AddItineraryForm({
                 ? `
                   border-[var(--foreground)]
                   bg-[var(--foreground)]
-                  text-white
+                  text-[var(--on-foreground)]
                 `
                 : `
                   border-[var(--border)]
@@ -406,7 +406,7 @@ export default function AddItineraryForm({
                 ? `
                   border-[var(--foreground)]
                   bg-[var(--foreground)]
-                  text-white
+                  text-[var(--on-foreground)]
                 `
                 : `
                   border-[var(--border)]
@@ -433,7 +433,7 @@ export default function AddItineraryForm({
                 ? `
                   border-[var(--foreground)]
                   bg-[var(--foreground)]
-                  text-white
+                  text-[var(--on-foreground)]
                 `
                 : `
                   border-[var(--border)]
@@ -676,7 +676,7 @@ export default function AddItineraryForm({
                           ? `
                             border-[var(--foreground)]
                             bg-[var(--foreground)]
-                            text-white
+                            text-[var(--on-foreground)]
                           `
                           : `
                             border-[var(--border)]
@@ -734,7 +734,7 @@ export default function AddItineraryForm({
                   ? `
                     border-[var(--foreground)]
                     bg-[var(--foreground)]
-                    text-white
+                    text-[var(--on-foreground)]
                   `
                   : `
                     border-[var(--border)]
@@ -760,7 +760,7 @@ export default function AddItineraryForm({
                   ? `
                     border-[var(--foreground)]
                     bg-[var(--foreground)]
-                    text-white
+                    text-[var(--on-foreground)]
                   `
                   : `
                     border-[var(--border)]
@@ -924,7 +924,7 @@ export default function AddItineraryForm({
           py-3
           text-sm
           font-medium
-          text-white
+          text-[var(--on-foreground)]
           disabled:opacity-50
         "
       >

@@ -47,35 +47,35 @@ export default async function PlacePage({ params }: PlacePageProps) {
 
   return (
     <section className="mx-auto max-w-2xl">
-      <Link href="/places" className="text-sm text-neutral-500">
+      <Link href="/places" className="text-sm text-[var(--muted)]">
         ← Places
       </Link>
 
       <div className="mt-6">
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-[var(--muted)]">
           {getPlaceStatusLabel(status)}
         </p>
 
         <h1 className="mt-1 text-3xl font-semibold">{place.name}</h1>
 
         {place.address && (
-          <p className="mt-3 text-neutral-500">{place.address}</p>
+          <p className="mt-3 text-[var(--muted)]">{place.address}</p>
         )}
 
         {place.note && (
-          <p className="mt-6 whitespace-pre-wrap leading-7 text-neutral-700">
+          <p className="mt-6 whitespace-pre-wrap leading-7 text-[var(--foreground)]">
             {place.note}
           </p>
         )}
 
         {place.visited_on && (
-          <p className="mt-4 text-sm text-neutral-500">
+          <p className="mt-4 text-sm text-[var(--muted)]">
             Visited: {place.visited_on}
           </p>
         )}
       </div>
 
-      <div className="mt-12 border-t border-neutral-200 pt-8">
+      <div className="mt-12 border-t border-[var(--border)] pt-8">
         <h2 className="text-xl font-medium">Edit place</h2>
 
         <div className="mt-5">
@@ -90,11 +90,11 @@ export default async function PlacePage({ params }: PlacePageProps) {
         </div>
       </div>
 
-      <div className="mt-12 border-t border-neutral-200 pt-8">
+      <div className="mt-12 border-t border-[var(--border)] pt-8">
         <form action={deletePlace}>
           <input type="hidden" name="placeId" value={place.id} />
 
-          <button type="submit" className="text-sm text-red-600">
+          <button type="submit" className="text-sm text-[var(--danger)]">
             Delete place
           </button>
         </form>

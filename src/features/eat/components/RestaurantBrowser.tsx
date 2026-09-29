@@ -129,7 +129,7 @@ export default function RestaurantBrowser({
                 ? `
                   border-[var(--foreground)]
                   bg-[var(--foreground)]
-                  text-white
+                  text-[var(--on-foreground)]
                 `
                 : `
                   border-[var(--border)]
@@ -164,7 +164,7 @@ export default function RestaurantBrowser({
                       ? `
                         border-[var(--foreground)]
                         bg-[var(--foreground)]
-                        text-white
+                        text-[var(--on-foreground)]
                       `
                       : `
                         border-[var(--border)]

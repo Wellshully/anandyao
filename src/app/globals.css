@@ -91,3 +91,246 @@ button {
     -webkit-tap-highlight-color: rgba(168, 95, 104, 0.12);
   }
 }
+
+
+/* =========================================================
+   Appearance themes
+   ========================================================= */
+
+/*
+ * The existing :root palette remains the
+ * canonical "An & Yao" appearance.
+ */
+
+html[data-theme="an-yao"] {
+  color-scheme: light;
+}
+
+
+/* ---------------------------------------------------------
+   Dark
+   --------------------------------------------------------- */
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --background: #111315;
+
+  --surface: #191c20;
+  --surface-soft: #22262b;
+
+  --foreground: #edf0f2;
+  --muted: #969fa8;
+
+  --border: #30363d;
+
+  --accent: #d9a39a;
+  --accent-soft: #302422;
+
+  --danger: #f17f8b;
+}
+
+
+/* ---------------------------------------------------------
+   Mocha
+   --------------------------------------------------------- */
+
+html[data-theme="mocha"] {
+  color-scheme: dark;
+
+  --background: #1e1e2e;
+
+  --surface: #252538;
+  --surface-soft: #313244;
+
+  --foreground: #cdd6f4;
+  --muted: #a6adc8;
+
+  --border: #45475a;
+
+  --accent: #cba6f7;
+  --accent-soft: #372f4d;
+
+  --danger: #f38ba8;
+}
+
+
+/* ---------------------------------------------------------
+   Tokyo Night
+   --------------------------------------------------------- */
+
+html[data-theme="tokyo-night"] {
+  color-scheme: dark;
+
+  --background: #1a1b26;
+
+  --surface: #202330;
+  --surface-soft: #24283b;
+
+  --foreground: #c0caf5;
+  --muted: #8b93b8;
+
+  --border: #3b4261;
+
+  --accent: #7aa2f7;
+  --accent-soft: #222b45;
+
+  --danger: #f7768e;
+}
+
+
+/* ---------------------------------------------------------
+   System
+   --------------------------------------------------------- */
+
+html[data-theme="system"] {
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] {
+    color-scheme: dark;
+
+    --background: #111315;
+
+    --surface: #191c20;
+    --surface-soft: #22262b;
+
+    --foreground: #edf0f2;
+    --muted: #969fa8;
+
+    --border: #30363d;
+
+    --accent: #d9a39a;
+    --accent-soft: #302422;
+
+    --danger: #f17f8b;
+  }
+}
+
+
+/*
+ * Theme switching should feel intentional
+ * without making every hover sluggish.
+ */
+
+html,
+body {
+  background-color: var(--background);
+}
+
+body {
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+
+/* =========================================================
+   Semantic contrast colors
+   ========================================================= */
+
+/*
+ * Used for text/icons placed directly on a
+ * foreground-colored surface.
+ *
+ * Since background and foreground are designed
+ * as opposing colors in every theme, this keeps
+ * contrast correct automatically.
+ */
+
+:root {
+  --on-foreground: var(--background);
+}
+
+
+/* =========================================================
+   Semantic foregrounds for filled controls
+   ========================================================= */
+
+:root {
+  --on-accent: #fffdf9;
+}
+
+html[data-theme="dark"] {
+  --on-accent: #111315;
+}
+
+html[data-theme="mocha"] {
+  --on-accent: #1e1e2e;
+}
+
+html[data-theme="tokyo-night"] {
+  --on-accent: #1a1b26;
+}
+
+html[data-theme="system"] {
+  --on-accent: #fffdf9;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] {
+    --on-accent: #111315;
+  }
+}
+
+
+/*
+ * Solid accent surfaces should automatically
+ * use the correct contrasting foreground.
+ */
+[class~="bg-[var(--accent)]"] {
+  color: var(--on-accent);
+}
+
+
+/* =========================================================
+   Strawberry Milk
+   ========================================================= */
+
+html[data-theme="strawberry-milk"] {
+  color-scheme: light;
+
+  --background: #fff0f5;
+
+  --surface: #fff8fa;
+  --surface-soft: #ffe1ea;
+
+  --foreground: #4a2833;
+  --muted: #956473;
+
+  --border: #f0c4d0;
+
+  --accent: #e75480;
+  --accent-soft: #ffd0dd;
+
+  --danger: #c73f61;
+
+  --on-accent: #2f111b;
+}
+
+
+/* =========================================================
+   Nord
+   ========================================================= */
+
+html[data-theme="nord"] {
+  color-scheme: dark;
+
+  --background: #2e3440;
+
+  --surface: #3b4252;
+  --surface-soft: #434c5e;
+
+  --foreground: #eceff4;
+  --muted: #b7c0cf;
+
+  --border: #4c566a;
+
+  --accent: #88c0d0;
+  --accent-soft: #354754;
+
+  --danger: #bf616a;
+
+  --on-accent: #1f2933;
+}

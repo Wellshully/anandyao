@@ -197,7 +197,7 @@ export default function EditRestaurantForm({
                         ? `
                           border-[var(--foreground)]
                           bg-[var(--foreground)]
-                          text-white
+                          text-[var(--on-foreground)]
                         `
                         : `
                           border-[var(--border)]
@@ -284,7 +284,7 @@ export default function EditRestaurantForm({
           py-3
           text-sm
           font-medium
-          text-white
+          text-[var(--on-foreground)]
           disabled:opacity-50
         "
       >

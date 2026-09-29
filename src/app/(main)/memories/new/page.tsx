@@ -7,7 +7,7 @@ import { createMemory } from "./actions";
 export default function NewMemoryPage() {
   return (
     <section className="mx-auto max-w-2xl">
-      <Link href="/memories" className="text-sm text-neutral-500">
+      <Link href="/memories" className="text-sm text-[var(--muted)]">
         ← Memories
       </Link>
 
@@ -23,7 +23,7 @@ export default function NewMemoryPage() {
             id="title"
             name="title"
             required
-            className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
           />
         </div>
 
@@ -40,7 +40,7 @@ export default function NewMemoryPage() {
             name="memoryDate"
             type="date"
             required
-            className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
           />
         </div>
 
@@ -55,7 +55,7 @@ export default function NewMemoryPage() {
           <input
             id="locationName"
             name="locationName"
-            className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
           />
         </div>
 
@@ -68,7 +68,7 @@ export default function NewMemoryPage() {
             id="body"
             name="body"
             rows={8}
-            className="w-full resize-y rounded-xl border border-neutral-200 bg-white px-3 py-2"
+            className="w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
           />
         </div>
 

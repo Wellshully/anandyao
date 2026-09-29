@@ -346,7 +346,7 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                 px-1.5
                 text-[10px]
                 font-medium
-                text-white
+                text-[var(--on-accent)]
               "
             >
               {attentionCount}
@@ -498,7 +498,7 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                     py-2
                     text-xs
                     font-medium
-                    text-white
+                    text-[var(--on-foreground)]
                     disabled:opacity-50
                   "
                 >

@@ -148,7 +148,7 @@ export default async function DatesPage() {
             py-3
             text-sm
             font-medium
-            text-white
+            text-[var(--on-foreground)]
           "
         >
           + New Date

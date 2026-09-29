@@ -92,7 +92,7 @@ export default function RestaurantActions({
             py-2.5
             text-sm
             font-medium
-            text-white
+            text-[var(--on-foreground)]
             disabled:opacity-50
           "
         >

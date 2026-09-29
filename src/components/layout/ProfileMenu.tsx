@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { signOut } from "@/app/auth/actions";
 import InteractionSettings from "@/features/interactions/components/InteractionSettings";
+import ThemeSwitcher from "@/features/appearance/components/ThemeSwitcher";
 import type { ProjectUsage } from "@/features/profile/usage-types";
 import NotificationSettings from "@/features/notifications/components/NotificationSettings";
 type ProfileMenuProps = {
@@ -146,7 +147,9 @@ export default function ProfileMenu({
             right-0
             top-[calc(100%+0.75rem)]
             z-50
-            w-64
+            max-h-[calc(100vh-6rem)]
+            w-80
+            overflow-y-auto
             rounded-[var(--radius-md)]
             border
             border-[var(--border)]
@@ -163,6 +166,25 @@ export default function ProfileMenu({
 
             <p className="mt-1 text-xs text-[var(--muted)]">An & Yao</p>
           </div>
+
+          <details className="mt-5 border-t border-[var(--border)] pt-4">
+            <summary
+              className="
+                cursor-pointer
+                select-none
+                text-[10px]
+                uppercase
+                tracking-[0.2em]
+                text-[var(--muted)]
+              "
+            >
+              Theme
+            </summary>
+
+            <div className="mt-3">
+              <ThemeSwitcher compact />
+            </div>
+          </details>
 
           <div className="mt-5 border-t border-[var(--border)] pt-4">
             <p className="mb-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">

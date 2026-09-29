@@ -66,12 +66,12 @@ export default async function JournalEntryPage({
 
   return (
     <article className="mx-auto max-w-3xl">
-      <Link href="/journal" className="text-sm text-neutral-500">
+      <Link href="/journal" className="text-sm text-[var(--muted)]">
         ← Journal
       </Link>
 
       <header className="mt-8">
-        <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-500">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
           <span>{entry.entry_date}</span>
 
           <span>·</span>
@@ -98,7 +98,7 @@ export default async function JournalEntryPage({
 
       {isAuthor && (
         <>
-          <section className="mt-16 border-t border-neutral-200 pt-8">
+          <section className="mt-16 border-t border-[var(--border)] pt-8">
             <h2 className="text-xl font-medium">Edit entry</h2>
 
             <div className="mt-5">
@@ -117,11 +117,11 @@ export default async function JournalEntryPage({
             </div>
           </section>
 
-          <section className="mt-12 border-t border-neutral-200 pt-8">
+          <section className="mt-12 border-t border-[var(--border)] pt-8">
             <form action={deleteJournalEntry}>
               <input type="hidden" name="entryId" value={entry.id} />
 
-              <button type="submit" className="text-sm text-red-600">
+              <button type="submit" className="text-sm text-[var(--danger)]">
                 Delete entry
               </button>
             </form>

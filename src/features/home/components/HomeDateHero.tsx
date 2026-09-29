@@ -168,7 +168,7 @@ export default async function HomeDateHero() {
                 py-3
                 text-sm
                 font-medium
-                text-white
+                text-[var(--on-foreground)]
               "
             >
               打開計畫 →
@@ -284,7 +284,7 @@ export default async function HomeDateHero() {
           py-3
           text-sm
           font-medium
-          text-white
+          text-[var(--on-foreground)]
         "
       >
         邀請他去約會 →

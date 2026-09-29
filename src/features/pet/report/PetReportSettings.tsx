@@ -153,7 +153,7 @@ export default function PetReportSettings({
               py-2
               text-sm
               font-medium
-              text-white
+              text-[var(--on-foreground)]
               transition
               disabled:opacity-50
             "

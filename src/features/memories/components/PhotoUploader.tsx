@@ -137,7 +137,7 @@ export default function PhotoUploader({
   }
 
   return (
-    <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-5">
+    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-5">
       <input
         ref={inputRef}
         type="file"
@@ -148,11 +148,11 @@ export default function PhotoUploader({
         className="block w-full text-sm"
       />
 
-      <p className="mt-2 text-xs text-neutral-500">Upload.</p>
+      <p className="mt-2 text-xs text-[var(--muted)]">Upload.</p>
 
       {uploading && <p className="mt-3 text-sm">Processing photos...</p>}
 
-      {message && <p className="mt-3 text-sm text-neutral-600">{message}</p>}
+      {message && <p className="mt-3 text-sm text-[var(--muted)]">{message}</p>}
     </div>
   );
 }

@@ -53,7 +53,7 @@ export default async function EatPage() {
             py-2.5
             text-sm
             font-medium
-            text-white
+            text-[var(--on-foreground)]
           "
         >
           Add restaurant
