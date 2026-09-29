@@ -64,21 +64,42 @@ function updateBrowserThemeColor(
       prefersDark,
     );
 
-  let meta =
-    document.querySelector<HTMLMetaElement>(
+  /*
+   * WebKit uses the first valid theme-color
+   * meta element.
+   *
+   * Remove old copies and prepend a fresh one
+   * so Safari cannot keep reading a stale
+   * Next.js-generated element.
+   */
+  document
+    .querySelectorAll(
       'meta[name="theme-color"]',
-    );
+    )
+    .forEach((element) => {
+      element.remove();
+    });
 
-  if (!meta) {
-    meta =
-      document.createElement("meta");
+  const meta =
+    document.createElement("meta");
 
-    meta.name = "theme-color";
-
-    document.head.appendChild(meta);
-  }
-
+  meta.name = "theme-color";
   meta.content = color;
+
+  document.head.prepend(meta);
+
+  /*
+   * Safari 26 also derives surrounding browser
+   * chrome from the page background in some
+   * situations, so update these synchronously.
+   */
+  document.documentElement.style.backgroundColor =
+    color;
+
+  if (document.body) {
+    document.body.style.backgroundColor =
+      color;
+  }
 }
 
 function applyTheme(theme: ThemeId) {

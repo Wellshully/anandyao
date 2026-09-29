@@ -68,27 +68,36 @@ const themeBootScript = `
             "#f8f6f1"
           );
 
-    var meta =
-      document.querySelector(
+    document
+      .querySelectorAll(
         'meta[name="theme-color"]'
-      );
+      )
+      .forEach(function (element) {
+        element.remove();
+      });
 
-    if (!meta) {
-      meta =
-        document.createElement("meta");
+    var meta =
+      document.createElement("meta");
 
-      meta.setAttribute(
-        "name",
-        "theme-color"
-      );
-
-      document.head.appendChild(meta);
-    }
+    meta.setAttribute(
+      "name",
+      "theme-color"
+    );
 
     meta.setAttribute(
       "content",
       browserColor
     );
+
+    document.head.prepend(meta);
+
+    document.documentElement.style.backgroundColor =
+      browserColor;
+
+    if (document.body) {
+      document.body.style.backgroundColor =
+        browserColor;
+    }
   } catch (_) {
     document.documentElement.dataset.theme =
       "an-yao";

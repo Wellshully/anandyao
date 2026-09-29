@@ -37,6 +37,7 @@ export default async function SiteHeader() {
         border-b
         border-[var(--border)]
         bg-[color:var(--background)]/90
+        pt-[env(safe-area-inset-top)]
         backdrop-blur-md
       "
     >
