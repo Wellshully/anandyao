@@ -69,6 +69,9 @@ export const petTaskCandidateSchema =
 
     timePrecision:
       petTaskTimePrecisionSchema,
+
+    timeExpression:
+      z.string().max(64).nullable(),
   });
 
 export const petTaskActionSchema = z.object({
