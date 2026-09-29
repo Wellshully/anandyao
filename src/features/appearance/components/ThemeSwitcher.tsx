@@ -5,6 +5,7 @@ import {
 } from "react";
 
 import {
+  getThemeBrowserColor,
   isThemeId,
   THEMES,
   type ThemeId,
@@ -49,6 +50,37 @@ function subscribe(
   };
 }
 
+function updateBrowserThemeColor(
+  theme: ThemeId,
+) {
+  const prefersDark =
+    window.matchMedia(
+      "(prefers-color-scheme: dark)",
+    ).matches;
+
+  const color =
+    getThemeBrowserColor(
+      theme,
+      prefersDark,
+    );
+
+  let meta =
+    document.querySelector<HTMLMetaElement>(
+      'meta[name="theme-color"]',
+    );
+
+  if (!meta) {
+    meta =
+      document.createElement("meta");
+
+    meta.name = "theme-color";
+
+    document.head.appendChild(meta);
+  }
+
+  meta.content = color;
+}
+
 function applyTheme(theme: ThemeId) {
   document.documentElement.dataset.theme =
     theme;
@@ -57,6 +89,8 @@ function applyTheme(theme: ThemeId) {
     STORAGE_KEY,
     theme,
   );
+
+  updateBrowserThemeColor(theme);
 
   window.dispatchEvent(
     new Event(THEME_CHANGE_EVENT),

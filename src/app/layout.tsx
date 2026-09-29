@@ -1,3 +1,4 @@
+import type { Viewport } from "next";
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 
@@ -18,6 +19,13 @@ export const metadata: Metadata = {
   },
 
   description: "Our little place on the internet.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#f8f6f1",
 };
 
 export default function RootLayout({

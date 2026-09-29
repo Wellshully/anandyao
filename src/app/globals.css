@@ -92,7 +92,6 @@ button {
   }
 }
 
-
 /* =========================================================
    Appearance themes
    ========================================================= */
@@ -105,7 +104,6 @@ button {
 html[data-theme="an-yao"] {
   color-scheme: light;
 }
-
 
 /* ---------------------------------------------------------
    Dark
@@ -130,7 +128,6 @@ html[data-theme="dark"] {
   --danger: #f17f8b;
 }
 
-
 /* ---------------------------------------------------------
    Mocha
    --------------------------------------------------------- */
@@ -154,7 +151,6 @@ html[data-theme="mocha"] {
   --danger: #f38ba8;
 }
 
-
 /* ---------------------------------------------------------
    Tokyo Night
    --------------------------------------------------------- */
@@ -177,7 +173,6 @@ html[data-theme="tokyo-night"] {
 
   --danger: #f7768e;
 }
-
 
 /* ---------------------------------------------------------
    System
@@ -208,7 +203,6 @@ html[data-theme="system"] {
   }
 }
 
-
 /*
  * Theme switching should feel intentional
  * without making every hover sluggish.
@@ -224,7 +218,6 @@ body {
     background-color 160ms ease,
     color 160ms ease;
 }
-
 
 /* =========================================================
    Semantic contrast colors
@@ -242,7 +235,6 @@ body {
 :root {
   --on-foreground: var(--background);
 }
-
 
 /* =========================================================
    Semantic foregrounds for filled controls
@@ -274,7 +266,6 @@ html[data-theme="system"] {
   }
 }
 
-
 /*
  * Solid accent surfaces should automatically
  * use the correct contrasting foreground.
@@ -282,7 +273,6 @@ html[data-theme="system"] {
 [class~="bg-[var(--accent)]"] {
   color: var(--on-accent);
 }
-
 
 /* =========================================================
    Strawberry Milk
@@ -308,7 +298,6 @@ html[data-theme="strawberry-milk"] {
 
   --on-accent: #2f111b;
 }
-
 
 /* =========================================================
    Nord

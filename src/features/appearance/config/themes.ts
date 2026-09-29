@@ -1,7 +1,7 @@
 export const THEME_IDS = [
   "system",
   "an-yao",
-  "sakura",
+  "strawberry-milk",
   "dark",
   "mocha",
   "tokyo-night",
@@ -16,7 +16,11 @@ export type ThemeDefinition = {
   name: string;
   description: string;
   colors: readonly string[];
+  browserColor: string;
 };
+
+export const SYSTEM_DARK_BROWSER_COLOR =
+  "#111315";
 
 export const THEMES: readonly ThemeDefinition[] =
   [
@@ -28,6 +32,7 @@ export const THEMES: readonly ThemeDefinition[] =
         "#f8f6f1",
         "#111315",
       ],
+      browserColor: "#f8f6f1",
     },
     {
       id: "an-yao",
@@ -38,16 +43,18 @@ export const THEMES: readonly ThemeDefinition[] =
         "#fffdf9",
         "#a85f68",
       ],
+      browserColor: "#f8f6f1",
     },
     {
-      id: "sakura",
-      name: "Sakura",
-      description: "柔和的櫻花粉色調",
+      id: "strawberry-milk",
+      name: "Strawberry Milk",
+      description: "甜一點的草莓牛奶粉",
       colors: [
-        "#fff7f9",
-        "#fffefe",
-        "#d96c8a",
+        "#fff0f5",
+        "#ffe1ea",
+        "#df4775",
       ],
+      browserColor: "#fff0f5",
     },
     {
       id: "dark",
@@ -58,6 +65,7 @@ export const THEMES: readonly ThemeDefinition[] =
         "#191c20",
         "#d9a39a",
       ],
+      browserColor: "#111315",
     },
     {
       id: "mocha",
@@ -68,6 +76,7 @@ export const THEMES: readonly ThemeDefinition[] =
         "#313244",
         "#cba6f7",
       ],
+      browserColor: "#1e1e2e",
     },
     {
       id: "tokyo-night",
@@ -78,6 +87,7 @@ export const THEMES: readonly ThemeDefinition[] =
         "#24283b",
         "#7aa2f7",
       ],
+      browserColor: "#1a1b26",
     },
     {
       id: "nord",
@@ -88,6 +98,7 @@ export const THEMES: readonly ThemeDefinition[] =
         "#3b4252",
         "#88c0d0",
       ],
+      browserColor: "#2e3440",
     },
   ];
 
@@ -96,5 +107,22 @@ export function isThemeId(
 ): value is ThemeId {
   return THEME_IDS.includes(
     value as ThemeId,
+  );
+}
+
+export function getThemeBrowserColor(
+  theme: ThemeId,
+  prefersDark: boolean,
+) {
+  if (theme === "system") {
+    return prefersDark
+      ? SYSTEM_DARK_BROWSER_COLOR
+      : "#f8f6f1";
+  }
+
+  return (
+    THEMES.find(
+      (item) => item.id === theme,
+    )?.browserColor ?? "#f8f6f1"
   );
 }
