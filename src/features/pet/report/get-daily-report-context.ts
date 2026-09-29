@@ -103,6 +103,8 @@ export type DailyReportPetTaskItem = {
   note: string | null;
 
   dueAt: string | null;
+  dueHasTime: boolean;
+
   localDate: string | null;
   localTime: string | null;
 
@@ -259,6 +261,7 @@ export async function getPetDailyReportContext({
           title,
           note,
           due_at,
+          due_has_time,
           created_at
         `,
       )
@@ -423,13 +426,21 @@ export async function getPetDailyReportContext({
 
       dueAt: task.due_at,
 
+      dueHasTime:
+        task.due_has_time,
+
       localDate:
         dueDate !== null
           ? getDateKey(dueDate)
           : null,
 
+      /*
+       * 23:59:59 is only an internal anchor for
+       * date-only tasks. Never expose it to the AI.
+       */
       localTime:
-        dueDate !== null
+        dueDate !== null &&
+        task.due_has_time
           ? getTimeKey(dueDate)
           : null,
 

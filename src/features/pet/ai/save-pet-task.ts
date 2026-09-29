@@ -6,6 +6,44 @@ import { createClient } from "@/lib/supabase/server";
 import type { PetTaskCandidate } from "@/features/pet/ai/pet-reply";
 import { getPet } from "@/features/pet/lib/get-pet";
 
+function stripLeadingDatePhrase(title: string) {
+  return title
+    .trim()
+    /*
+     * Relative dates must never become permanent
+     * parts of a task title.
+     *
+     * Example:
+     *   明天早上回診
+     * becomes:
+     *   早上回診
+     */
+    .replace(
+      /^(?:今天|今日|明天|明日|後天|后天)\s*(?:要|得|需要)?\s*/u,
+      "",
+    )
+    /*
+     * Also remove simple absolute date prefixes.
+     *
+     * 10/4 練團 -> 練團
+     * 10月4日 練團 -> 練團
+     */
+    .replace(
+      /^\d{1,2}(?:\/|月)\d{1,2}(?:日|號)?[\s，,、:：-]*/u,
+      "",
+    )
+    /*
+     * Weekday prefixes.
+     *
+     * 下週三交報告 -> 交報告
+     */
+    .replace(
+      /^(?:(?:這|本|下)?(?:週|周|星期)[一二三四五六日天])\s*(?:要|得|需要)?\s*/u,
+      "",
+    )
+    .trim();
+}
+
 function normalizeTaskTitle(title: string) {
   return title
     .normalize("NFKC")
@@ -13,64 +51,106 @@ function normalizeTaskTitle(title: string) {
     .replace(/[\s\p{P}\p{S}]+/gu, "");
 }
 
-function normalizeDueAt(value: string | null) {
+type NormalizedDue = {
+  dueAt: string | null;
+  dueHasTime: boolean;
+};
+
+function normalizeDueAt(
+  value: string | null,
+): NormalizedDue {
   if (!value) {
-    return null;
+    return {
+      dueAt: null,
+      dueHasTime: false,
+    };
   }
 
   const trimmed = value.trim();
 
   /*
-   * Gemini should normally return a full ISO timestamp.
+   * Important contract with talk-to-pet:
    *
-   * As a fallback, if only YYYY-MM-DD is returned,
-   * interpret it as the end of that day in Taipei.
+   * YYYY-MM-DD
+   * = user gave a date but NO exact clock time.
+   *
+   * Full ISO timestamp
+   * = user gave an exact clock time.
    */
-  const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
+  const dateOnlyPattern =
+    /^\d{4}-\d{2}-\d{2}$/;
 
-  const candidate = dateOnlyPattern.test(trimmed)
+  const isDateOnly =
+    dateOnlyPattern.test(trimmed);
+
+  const candidate = isDateOnly
     ? `${trimmed}T23:59:59+08:00`
     : trimmed;
 
-  const timestamp = Date.parse(candidate);
+  const timestamp =
+    Date.parse(candidate);
 
   if (Number.isNaN(timestamp)) {
-    return null;
+    return {
+      dueAt: null,
+      dueHasTime: false,
+    };
   }
 
-  return new Date(timestamp).toISOString();
+  return {
+    dueAt:
+      new Date(timestamp).toISOString(),
+
+    dueHasTime:
+      !isDateOnly,
+  };
 }
 
-export async function savePetTask(task: PetTaskCandidate) {
-  const [user, supabase, pet] = await Promise.all([
-    requireUser(),
-    createClient(),
-    getPet(),
-  ]);
+export async function savePetTask(
+  task: PetTaskCandidate,
+) {
+  const [user, supabase, pet] =
+    await Promise.all([
+      requireUser(),
+      createClient(),
+      getPet(),
+    ]);
 
-  const title = task.title.trim();
+  const rawTitle =
+    task.title.trim();
 
-  if (!title) {
+  if (!rawTitle) {
     return;
   }
 
-  const note = task.note?.trim() || null;
+  const cleanedTitle =
+    stripLeadingDatePhrase(rawTitle);
 
-  const dueAt = normalizeDueAt(task.dueAt);
+  const title =
+    cleanedTitle || rawTitle;
 
-  /*
-   * Prevent obvious duplicate tasks.
-   *
-   * Only compare the current user's pending
-   * tasks for this pet.
-   */
-  const { data: existingTasks, error: existingError } = await supabase
+  const note =
+    task.note?.trim() || null;
+
+  const normalizedDue =
+    normalizeDueAt(task.dueAt);
+
+  const {
+    dueAt,
+    dueHasTime,
+  } = normalizedDue;
+
+  const {
+    data: existingTasks,
+    error: existingError,
+  } = await supabase
     .from("pet_tasks")
     .select(
       `
         id,
         title,
         due_at,
+        due_has_time,
         note
       `,
     )
@@ -83,51 +163,80 @@ export async function savePetTask(task: PetTaskCandidate) {
     .limit(50);
 
   if (existingError) {
-    throw new Error(existingError.message);
+    throw new Error(
+      existingError.message,
+    );
   }
 
-  const normalizedTitle = normalizeTaskTitle(title);
+  const normalizedTitle =
+    normalizeTaskTitle(title);
 
-  const duplicate = (existingTasks ?? []).find(
-    (item) => normalizeTaskTitle(item.title) === normalizedTitle,
-  );
+  const duplicate =
+    (existingTasks ?? []).find(
+      (item) =>
+        normalizeTaskTitle(
+          item.title,
+        ) === normalizedTitle,
+    );
 
-  const now = new Date().toISOString();
+  const now =
+    new Date().toISOString();
 
-  /*
-   * If the same pending task already exists,
-   * update useful details instead of adding a
-   * second copy.
-   */
   if (duplicate) {
-    const { error } = await supabase
-      .from("pet_tasks")
-      .update({
-        note: note ?? duplicate.note,
-        due_at: dueAt ?? duplicate.due_at,
-        updated_at: now,
-      })
-      .eq("id", duplicate.id)
-      .eq("user_id", user.id);
+    const hasNewDue =
+      dueAt !== null;
+
+    const { error } =
+      await supabase
+        .from("pet_tasks")
+        .update({
+          note:
+            note ??
+            duplicate.note,
+
+          due_at:
+            dueAt ??
+            duplicate.due_at,
+
+          due_has_time:
+            hasNewDue
+              ? dueHasTime
+              : duplicate.due_has_time,
+
+          updated_at: now,
+        })
+        .eq("id", duplicate.id)
+        .eq("user_id", user.id);
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(
+        error.message,
+      );
     }
 
     return;
   }
 
-  const { error } = await supabase.from("pet_tasks").insert({
-    pet_id: pet.id,
-    user_id: user.id,
-    title,
-    note,
-    due_at: dueAt,
-    status: "pending",
-    created_from: "chat",
-  });
+  const { error } =
+    await supabase
+      .from("pet_tasks")
+      .insert({
+        pet_id: pet.id,
+        user_id: user.id,
+
+        title,
+        note,
+
+        due_at: dueAt,
+        due_has_time: dueHasTime,
+
+        status: "pending",
+        created_from: "chat",
+      });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      error.message,
+    );
   }
 }

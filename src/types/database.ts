@@ -958,6 +958,7 @@ export type Database = {
           created_at: string
           created_from: string
           due_at: string | null
+          due_has_time: boolean
           id: string
           note: string | null
           pet_id: string
@@ -970,6 +971,7 @@ export type Database = {
           created_at?: string
           created_from?: string
           due_at?: string | null
+          due_has_time?: boolean
           id?: string
           note?: string | null
           pet_id: string
@@ -982,6 +984,7 @@ export type Database = {
           created_at?: string
           created_from?: string
           due_at?: string | null
+          due_has_time?: boolean
           id?: string
           note?: string | null
           pet_id?: string
