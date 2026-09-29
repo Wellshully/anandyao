@@ -9,6 +9,10 @@ import { siteConfig } from "@/config/site";
 import { buildPetContext } from "@/features/pet/ai/build-pet-context";
 
 import { buildAppContext } from "@/features/pet/ai/context/build-app-context";
+import {
+  isRecentActivityQuestion,
+  shouldLoadPendingTaskContext,
+} from "@/features/pet/ai/context/intent";
 
 import {
   trimPetConversation,
@@ -142,18 +146,47 @@ export async function talkToPet(
     normalized,
   ].join("\n");
 
-  const [petContext, appContext] = await Promise.all([
-    buildPetContext(memoryQuery),
+  const recentActivityQuestion =
+    isRecentActivityQuestion(normalized);
 
-    /*
-     * App context routing intentionally uses only
-     * the CURRENT message so an old topic does not
-     * accidentally load unrelated App data.
-     */
-    buildAppContext({
-      message: normalized,
-    }),
-  ]);
+  const includePendingTaskContext =
+    shouldLoadPendingTaskContext(normalized);
+
+  /*
+   * Context boundaries:
+   *
+   * Normal conversation:
+   *   semantic memories only.
+   *
+   * Task conversation:
+   *   current user's pending tasks, but no
+   *   unrelated long-term memories.
+   *
+   * "剛剛 / 剛才" activity questions:
+   *   no long-term memories, tasks, Places or
+   *   broad historical App context may be used
+   *   as evidence of recent activity.
+   */
+  const [petContext, appContext] =
+    await Promise.all([
+      buildPetContext(
+        memoryQuery,
+        {
+          includeMemories:
+            !recentActivityQuestion &&
+            !includePendingTaskContext,
+
+          includePendingTasks:
+            includePendingTaskContext,
+        },
+      ),
+
+      recentActivityQuestion
+        ? Promise.resolve("")
+        : buildAppContext({
+            message: normalized,
+          }),
+    ]);
 
   const conversationText =
     recentConversation.length > 0
@@ -171,7 +204,7 @@ export async function talkToPet(
   const currentLocalTime = getCurrentLocalTimeContext();
 
   const prompt = `
-以下是你目前知道的身份、狀態、長期記憶與主人自己的待辦：
+以下是這一輪允許你使用的身份、狀態與相關資料：
 
 ${petContext}
 
@@ -205,6 +238,58 @@ ${appContext}
 - 「昨天」是今天的前一個日曆日。
 - 「這週」、「下週」、「星期幾」等相對日期，都必須以上面的真實日期與 ${currentLocalTime.timeZone} 為基準。
 - 不可以把模型訓練資料中的日期、伺服器 UTC 日期或最近對話中的舊日期當成現在時間。
+
+--------------------------------
+「剛剛 / 剛才」規則
+--------------------------------
+
+「剛剛」、「剛才」、「方才」代表非常近期發生的事情。
+
+回答：
+- 「我剛剛在幹嘛？」
+- 「我剛才做了什麼？」
+- 「我剛剛去哪？」
+- 「我剛剛在哪？」
+
+這類問題時，必須使用非常嚴格的證據標準。
+
+可以作為證據的只有：
+
+1. 最近對話中有明確 createdAt，而且主人明確說自己當時正在做或剛完成某件事。
+2. 有明確 timestamp 的實際事件，而且時間真的接近目前時間。
+
+以下全部都不能單獨證明「剛剛在做什麼」：
+
+- pending task
+- task dueAt
+- 長期記憶
+- temporary memory
+- 昨天或更早的 Date
+- Places 中的 visited / revisit
+- 想去的地方
+- 未來行程
+- 過去曾經做過的事情
+- 單純因為某個資訊最近被更新
+
+非常重要：
+
+「昨天去新竹」
+只能代表昨天的事情。
+
+即使「去新竹」這筆資料現在仍然存在，
+也絕對不能回答成：
+「你剛剛去新竹。」
+
+pending task 也只代表還沒完成，
+不能回答成：
+「你剛剛在做這個。」
+
+如果沒有可靠的近期證據，
+應該直接自然回答不知道，
+例如：
+「這個我不知道耶，你剛剛沒有跟我說。」
+
+不要為了讓回答看起來完整而猜測。
 
 非常重要：
 
