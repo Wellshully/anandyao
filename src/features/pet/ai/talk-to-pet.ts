@@ -396,7 +396,8 @@ task = {
   note,
   dueAt,
   temporalKind,
-  timePrecision
+  timePrecision,
+  timeExpression
 }
 
 title：
@@ -445,6 +446,51 @@ daypart
 
 exact
 = 有明確鐘點。
+
+timeExpression：
+
+保留主人原始訊息中描述這件事情時間的文字。
+
+例如：
+
+「明天下午三點去剪頭髮」
+timeExpression = "明天下午三點"
+
+「後天晚上去看電影」
+timeExpression = "後天晚上"
+
+「星期五前交報告」
+timeExpression = "星期五前"
+
+「最近整理房間」
+timeExpression = null
+
+如果時間文字同時具有「時段」和「明確鐘點」，
+明確鐘點優先。
+
+例如：
+
+下午三點
+= exact
+= 15:00
+
+晚上七點半
+= exact
+= 19:30
+
+上午 10:30
+= exact
+= 10:30
+
+不能把：
+下午三點
+解析成：
+17:59:59
+
+也不能把：
+晚上七點半
+解析成：
+23:59:59
 
 dueAt：
 

@@ -36,6 +36,67 @@ const conversationSchema = z
   )
   .max(PET_CONVERSATION_MAX_MESSAGES);
 
+function normalizeSemanticText(
+  value: string,
+) {
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(
+      /[\s\p{P}\p{S}]+/gu,
+      "",
+    );
+}
+
+function memoryOverlapsCreatedTask(
+  memoryContent: string,
+  taskActions: PetReply["taskActions"],
+) {
+  const normalizedMemory =
+    normalizeSemanticText(
+      memoryContent,
+    );
+
+  return taskActions.some(
+    (action) => {
+      if (
+        action.action !== "create" ||
+        !action.task
+      ) {
+        return false;
+      }
+
+      const candidates = [
+        action.task.title,
+        action.task.note,
+      ]
+        .filter(
+          (
+            value,
+          ): value is string =>
+            Boolean(value),
+        )
+        .map(
+          normalizeSemanticText,
+        )
+        .filter(
+          (value) =>
+            value.length >= 2,
+        );
+
+      return candidates.some(
+        (candidate) =>
+          normalizedMemory.includes(
+            candidate,
+          ) ||
+          candidate.includes(
+            normalizedMemory,
+          ),
+      );
+    },
+  );
+}
+
 type TalkToPetResult =
   | {
       success: true;
@@ -75,13 +136,31 @@ export async function talkToPetAction(
     /*
      * Memory persistence is best-effort.
      */
-    if (reply.memory) {
+    const shouldSaveMemory =
+      Boolean(reply.memory) &&
+      !(
+        reply.memory?.type ===
+          "temporary" &&
+        memoryOverlapsCreatedTask(
+          reply.memory.content,
+          reply.taskActions,
+        )
+      );
+
+    if (
+      reply.memory &&
+      shouldSaveMemory
+    ) {
       try {
-        await savePetMemory(reply.memory);
+        await savePetMemory(
+          reply.memory,
+        );
       } catch (cause) {
         console.error(
           "Failed to save pet memory:",
-          cause instanceof Error ? cause.message : cause,
+          cause instanceof Error
+            ? cause.message
+            : cause,
         );
       }
     }
