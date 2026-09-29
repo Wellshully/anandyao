@@ -8,6 +8,13 @@ import { getRecentNtuMailHeadersForUser } from "@/features/study/mail/ntu-webmai
 import { shouldIgnoreNtuMail } from "@/features/study/mail/mail-filter";
 
 import { getConfiguredStudyUserIds } from "@/features/study/lib/get-study-credentials";
+import { markStudySyncSuccess } from "@/features/study/lib/study-sync-state";
+
+import {
+  claimNotificationDelivery,
+  completeNotificationDelivery,
+  releaseNotificationDeliveryClaim,
+} from "@/features/notifications/lib/notification-delivery-lease";
 
 import { sendPushToUser } from "@/features/notifications/lib/send-push-to-user";
 
@@ -95,86 +102,93 @@ async function createMailNotificationBaseline(
   }
 }
 
-async function claimMailNotification(userId: string, mail: SyncedMail) {
-  const supabase = createAdminClient();
+async function sendMailNotification(
+  userId: string,
+  mail: SyncedMail,
+) {
+  const notificationKey =
+    `mail:${mail.uidl}`;
 
-  const { error } = await supabase.from("notification_deliveries").insert({
-    user_id: userId,
+  const claimToken =
+    await claimNotificationDelivery({
+      userId,
 
-    notification_key: `mail:${mail.uidl}`,
+      notificationKey,
 
-    notification_type: "study_mail",
+      notificationType:
+        "study_mail",
 
-    source_id: mail.id,
-  });
+      sourceId: mail.id,
+    });
 
-  if (!error) {
-    return true;
+  if (!claimToken) {
+    return false;
   }
 
   /*
-   * Another run already handled
-   * this UIDL.
+   * Once Push succeeds, never release the
+   * claim merely because completion bookkeeping
+   * later encounters an error.
+   *
+   * Otherwise the next worker could immediately
+   * send the same mail notification again.
    */
-  if (error.code === "23505") {
-    return false;
-  }
-
-  throw new Error(`Failed to claim mail notification: ${error.message}`);
-}
-
-async function releaseMailNotificationClaim(userId: string, uidl: string) {
-  const supabase = createAdminClient();
-
-  const { error } = await supabase
-    .from("notification_deliveries")
-    .delete()
-    .eq("user_id", userId)
-    .eq("notification_key", `mail:${uidl}`);
-
-  if (error) {
-    console.warn("Failed to release mail notification claim:", error.message);
-  }
-}
-
-async function sendMailNotification(userId: string, mail: SyncedMail) {
-  const claimed = await claimMailNotification(userId, mail);
-
-  if (!claimed) {
-    return false;
-  }
+  let pushDelivered = false;
 
   try {
     const sender =
-      mail.from_name?.trim() || mail.from_address?.trim() || "寄件者";
+      mail.from_name?.trim() ||
+      mail.from_address?.trim() ||
+      "寄件者";
 
-    const result = await sendPushToUser(userId, {
-      title: "新信件",
+    const result =
+      await sendPushToUser(
+        userId,
+        {
+          title: "新信件",
 
-      body: `${sender}：${mail.subject}`,
+          body:
+            `${sender}：${mail.subject}`,
 
-      /*
-       * We can point this directly
-       * to the mail detail page.
-       */
-      url: `/study/inbox/${mail.id}`,
-    });
+          url:
+            `/study/inbox/${mail.id}`,
+        },
+      );
 
-    /*
-     * No device received the push.
-     *
-     * Remove the claim so a later
-     * background run can retry.
-     */
     if (result.sent === 0) {
-      await releaseMailNotificationClaim(userId, mail.uidl);
+      await releaseNotificationDeliveryClaim({
+        userId,
+        notificationKey,
+        claimToken,
+      });
 
       return false;
     }
 
+    pushDelivered = true;
+
+    const completed =
+      await completeNotificationDelivery({
+        userId,
+        notificationKey,
+        claimToken,
+      });
+
+    if (!completed) {
+      console.warn(
+        "Mail notification was pushed but its delivery lease could not be completed.",
+      );
+    }
+
     return true;
   } catch (cause) {
-    await releaseMailNotificationClaim(userId, mail.uidl);
+    if (!pushDelivered) {
+      await releaseNotificationDeliveryClaim({
+        userId,
+        notificationKey,
+        claimToken,
+      });
+    }
 
     throw cause;
   }
@@ -213,10 +227,46 @@ export async function syncNtuMailForUser(
   }
 
   if (filteredMessages.length === 0) {
+    /*
+     * A successful POP3 fetch is still a successful
+     * sync even when the mailbox contains no relevant
+     * messages.
+     */
+    await markStudySyncSuccess(
+      userId,
+      "mail",
+    );
+
+    /*
+     * An empty mailbox still establishes a valid
+     * notification baseline.
+     *
+     * Otherwise the first future mail would become
+     * the "initial inbox" and its notification would
+     * incorrectly be suppressed.
+     */
+    let baselineCreated = false;
+
+    if (options.notify) {
+      const hasBaseline =
+        await hasMailNotificationBaseline(
+          userId,
+        );
+
+      if (!hasBaseline) {
+        await createMailNotificationBaseline(
+          userId,
+          [],
+        );
+
+        baselineCreated = true;
+      }
+    }
+
     return {
       synced: 0,
       notified: 0,
-      baselineCreated: false,
+      baselineCreated,
     };
   }
 
@@ -267,6 +317,16 @@ export async function syncNtuMailForUser(
   if (syncError) {
     throw new Error(syncError.message);
   }
+
+  /*
+   * The provider synchronization itself is now
+   * complete. Notification delivery is a separate
+   * concern and must not define data freshness.
+   */
+  await markStudySyncSuccess(
+    userId,
+    "mail",
+  );
 
   const mails = syncedMails ?? [];
 

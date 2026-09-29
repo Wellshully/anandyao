@@ -2,6 +2,12 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import {
+  claimNotificationDelivery,
+  completeNotificationDelivery,
+  releaseNotificationDeliveryClaim,
+} from "@/features/notifications/lib/notification-delivery-lease";
+
 import { sendPushToUser } from "@/features/notifications/lib/send-push-to-user";
 
 const PERSONAL_WINDOW_MS = 10 * 60 * 1000;
@@ -43,55 +49,6 @@ function buildTaipeiTimestamp(date: string, time: string) {
   return new Date(`${date}T${time.slice(0, 8)}+08:00`).getTime();
 }
 
-async function claimNotification(
-  userId: string,
-  notificationKey: string,
-  notificationType: string,
-  sourceId: string,
-) {
-  const supabase = createAdminClient();
-
-  const { error } = await supabase.from("notification_deliveries").insert({
-    user_id: userId,
-
-    notification_key: notificationKey,
-
-    notification_type: notificationType,
-
-    source_id: sourceId,
-  });
-
-  if (!error) {
-    return true;
-  }
-
-  /*
-   * PostgreSQL unique violation.
-   *
-   * Means this exact reminder was already
-   * claimed / delivered.
-   */
-  if (error.code === "23505") {
-    return false;
-  }
-
-  throw new Error(`Failed to claim notification: ${error.message}`);
-}
-
-async function releaseNotification(userId: string, notificationKey: string) {
-  const supabase = createAdminClient();
-
-  const { error } = await supabase
-    .from("notification_deliveries")
-    .delete()
-    .eq("user_id", userId)
-    .eq("notification_key", notificationKey);
-
-  if (error) {
-    console.warn("Failed to release notification claim:", error.message);
-  }
-}
-
 async function deliverOnce({
   userId,
   notificationKey,
@@ -109,44 +66,86 @@ async function deliverOnce({
   body: string;
   url: string;
 }) {
-  const claimed = await claimNotification(
-    userId,
-    notificationKey,
-    notificationType,
-    sourceId,
-  );
+  const claimToken =
+    await claimNotificationDelivery({
+      userId,
+      notificationKey,
+      notificationType,
+      sourceId,
+    });
 
-  if (!claimed) {
+  if (!claimToken) {
     return false;
   }
 
-  try {
-    const result = await sendPushToUser(userId, {
-      title,
-      body,
-      url,
-    });
+  /*
+   * Once at least one device has actually
+   * received the Push, do not release the
+   * claim on later bookkeeping errors.
+   *
+   * Releasing after a successful Push could
+   * cause an immediate duplicate notification.
+   */
+  let pushDelivered = false;
 
-    /*
-     * No device actually received the push.
-     *
-     * Remove the delivery claim so a future
-     * run can retry after the user enables a
-     * device again.
-     */
+  try {
+    const result = await sendPushToUser(
+      userId,
+      {
+        title,
+        body,
+        url,
+      },
+    );
+
     if (result.sent === 0) {
-      await releaseNotification(userId, notificationKey);
+      await releaseNotificationDeliveryClaim({
+        userId,
+        notificationKey,
+        claimToken,
+      });
 
       return false;
     }
 
+    pushDelivered = true;
+
+    const completed =
+      await completeNotificationDelivery({
+        userId,
+        notificationKey,
+        claimToken,
+      });
+
+    if (!completed) {
+      /*
+       * This should normally only happen if
+       * the lease expired and another worker
+       * reclaimed it.
+       *
+       * Push was already delivered, so never
+       * delete another worker's claim.
+       */
+      console.warn(
+        "Notification was pushed but its delivery lease could not be completed.",
+      );
+    }
+
     return true;
   } catch (cause) {
-    await releaseNotification(userId, notificationKey);
+    if (!pushDelivered) {
+      await releaseNotificationDeliveryClaim({
+        userId,
+        notificationKey,
+        claimToken,
+      });
+    }
 
     console.warn(
       "Reminder delivery failed:",
-      cause instanceof Error ? cause.message : String(cause),
+      cause instanceof Error
+        ? cause.message
+        : String(cause),
     );
 
     return false;
@@ -420,21 +419,70 @@ async function runDateReminders(now: number, userId?: string) {
   return sent;
 }
 
+async function runReminderCategory(
+  category: keyof ReminderStats,
+  worker: () => Promise<number>,
+) {
+  try {
+    return await worker();
+  } catch (cause) {
+    /*
+     * Reminder categories are independent.
+     *
+     * A database/query failure in one category
+     * must never prevent the remaining categories
+     * from being processed during this Cron run.
+     */
+    console.error(
+      `Notification reminder category failed: ${category}`,
+      cause instanceof Error
+        ? cause.message
+        : String(cause),
+    );
+
+    return 0;
+  }
+}
+
 export async function runNotificationReminders(
   options: RunNotificationRemindersOptions = {},
 ): Promise<ReminderStats> {
   const now = Date.now();
 
   /*
-   * Keep these separate so one reminder
-   * category failing does not silently hide
-   * which query caused the problem.
+   * Keep execution sequential to avoid suddenly
+   * increasing database / Push concurrency, while
+   * isolating each category's failures.
    */
-  const personal = await runPersonalReminders(now, options.userId);
+  const personal =
+    await runReminderCategory(
+      "personal",
+      () =>
+        runPersonalReminders(
+          now,
+          options.userId,
+        ),
+    );
 
-  const assignments = await runAssignmentReminders(now, options.userId);
+  const assignments =
+    await runReminderCategory(
+      "assignments",
+      () =>
+        runAssignmentReminders(
+          now,
+          options.userId,
+        ),
+    );
 
-  const dates = await runDateReminders(now, options.userId);
+  const dates =
+    await runReminderCategory(
+      "dates",
+      () =>
+        runDateReminders(
+          now,
+          options.userId,
+        ),
+    );
 
   return {
     personal,

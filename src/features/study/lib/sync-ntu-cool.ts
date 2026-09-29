@@ -17,6 +17,13 @@ import {
 import { getConfiguredStudyUserIds } from "@/features/study/lib/get-study-credentials";
 
 import { isAssignmentSubmitted } from "@/features/study/lib/is-assignment-submitted";
+import {
+  claimCoolSyncLease,
+  completeCoolSyncLease,
+  CoolSyncAlreadyRunningError,
+  releaseCoolSyncLease,
+  renewCoolSyncLease,
+} from "@/features/study/lib/cool-sync-lease";
 
 export type SyncNtuCoolResult = {
   courses: number;
@@ -30,7 +37,13 @@ type BackgroundSyncAccountResult =
   | {
       userId: string;
       success: true;
+      skipped: false;
       result: SyncNtuCoolResult;
+    }
+  | {
+      userId: string;
+      success: true;
+      skipped: true;
     }
   | {
       userId: string;
@@ -125,7 +138,18 @@ export async function syncNtuCoolForUser(
   userId: string,
   triggerSource: StudySyncTrigger = "background",
 ): Promise<SyncNtuCoolResult> {
-  const logId = await startSyncLog(userId, triggerSource);
+  const claimToken =
+    await claimCoolSyncLease(userId);
+
+  if (!claimToken) {
+    throw new CoolSyncAlreadyRunningError();
+  }
+
+  const logId =
+    await startSyncLog(
+      userId,
+      triggerSource,
+    );
 
   try {
     const supabase = createAdminClient();
@@ -157,20 +181,6 @@ export async function syncNtuCoolForUser(
 
       synced_at: now,
     }));
-
-    if (courseRows.length > 0) {
-      const { error: coursesError } = await supabase
-        .from("study_courses")
-        .upsert(courseRows, {
-          onConflict: "user_id,cool_course_id",
-        });
-
-      if (coursesError) {
-        throw new Error(
-          `Failed to sync Study courses: ${coursesError.message}`,
-        );
-      }
-    }
 
     /*
      * ===============================
@@ -246,20 +256,6 @@ export async function syncNtuCoolForUser(
       }
     }
 
-    if (assignmentRows.length > 0) {
-      const { error: assignmentsError } = await supabase
-        .from("study_assignments")
-        .upsert(assignmentRows, {
-          onConflict: "user_id,cool_assignment_id",
-        });
-
-      if (assignmentsError) {
-        throw new Error(
-          `Failed to sync Study assignments: ${assignmentsError.message}`,
-        );
-      }
-    }
-
     /*
      * ===============================
      * Announcements
@@ -306,11 +302,74 @@ export async function syncNtuCoolForUser(
       })
       .filter((announcement) => announcement.cool_course_id > 0);
 
+    /*
+     * All remote COOL requests have completed.
+     *
+     * Confirm that this worker still owns the
+     * per-user lease before changing the snapshot.
+     *
+     * If an old worker exceeded its lease and a
+     * newer worker reclaimed it, the old worker
+     * stops here and never writes stale data.
+     */
+    const leaseRenewed =
+      await renewCoolSyncLease({
+        userId,
+        claimToken,
+      });
+
+    if (!leaseRenewed) {
+      throw new Error(
+        "COOL sync lease was lost before snapshot persistence.",
+      );
+    }
+
+    /*
+     * ===============================
+     * Persist complete snapshot
+     * ===============================
+     */
+
+    if (courseRows.length > 0) {
+      const { error: coursesError } =
+        await supabase
+          .from("study_courses")
+          .upsert(courseRows, {
+            onConflict:
+              "user_id,cool_course_id",
+          });
+
+      if (coursesError) {
+        throw new Error(
+          `Failed to sync Study courses: ${coursesError.message}`,
+        );
+      }
+    }
+
+    if (assignmentRows.length > 0) {
+      const { error: assignmentsError } =
+        await supabase
+          .from("study_assignments")
+          .upsert(assignmentRows, {
+            onConflict:
+              "user_id,cool_assignment_id",
+          });
+
+      if (assignmentsError) {
+        throw new Error(
+          `Failed to sync Study assignments: ${assignmentsError.message}`,
+        );
+      }
+    }
+
     if (announcementRows.length > 0) {
-      const { error: announcementsError } = await supabase
+      const {
+        error: announcementsError,
+      } = await supabase
         .from("study_announcements")
         .upsert(announcementRows, {
-          onConflict: "user_id,cool_announcement_id",
+          onConflict:
+            "user_id,cool_announcement_id",
         });
 
       if (announcementsError) {
@@ -392,11 +451,42 @@ export async function syncNtuCoolForUser(
       announcements: announcementRows.length,
     };
 
-    await finishSyncLogSuccess(logId, result);
+    /*
+     * Only mark the provider fresh after the
+     * complete remote snapshot has been fetched,
+     * stored, and reconciled successfully.
+     *
+     * This also works when COOL legitimately
+     * returns zero courses.
+     */
+    const leaseCompleted =
+      await completeCoolSyncLease({
+        userId,
+        claimToken,
+      });
+
+    if (!leaseCompleted) {
+      throw new Error(
+        "COOL sync lease was lost before completion.",
+      );
+    }
+
+    await finishSyncLogSuccess(
+      logId,
+      result,
+    );
 
     return result;
   } catch (cause) {
-    await finishSyncLogError(logId, cause);
+    await releaseCoolSyncLease({
+      userId,
+      claimToken,
+    });
+
+    await finishSyncLogError(
+      logId,
+      cause,
+    );
 
     throw cause;
   }
@@ -458,10 +548,27 @@ export async function syncAllConfiguredNtuCoolAccounts(): Promise<
       results.push({
         userId,
         success: true,
+        skipped: false,
         result,
       });
     } catch (cause) {
-      const error = cause instanceof Error ? cause.message : String(cause);
+      if (
+        cause instanceof
+        CoolSyncAlreadyRunningError
+      ) {
+        results.push({
+          userId,
+          success: true,
+          skipped: true,
+        });
+
+        continue;
+      }
+
+      const error =
+        cause instanceof Error
+          ? cause.message
+          : String(cause);
 
       console.error("Background COOL sync failed:", {
         userId,

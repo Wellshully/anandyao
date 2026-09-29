@@ -4,6 +4,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 import { sendPushToUser } from "@/features/notifications/lib/send-push-to-user";
 
+import {
+  claimPetReportDelivery,
+  completePetReportDelivery,
+  releasePetReportDeliveryClaim,
+} from "@/features/pet/report/report-delivery-lease";
+
 import { getPetDailyReportContext } from "@/features/pet/report/get-daily-report-context";
 import { generatePetDailyReport } from "@/features/pet/report/generate-daily-report";
 
@@ -77,59 +83,6 @@ function buildPushBody(content: string) {
   }
 
   return `${normalized.slice(0, 99).trimEnd()}…`;
-}
-
-async function claimReportDelivery(
-  userId: string,
-  reportDate: string,
-) {
-  const supabase = createAdminClient();
-
-  const { error } = await supabase
-    .from("pet_report_deliveries")
-    .insert({
-      user_id: userId,
-
-      report_date: reportDate,
-    });
-
-  if (!error) {
-    return true;
-  }
-
-  /*
-   * user_id + report_date is UNIQUE.
-   *
-   * Another worker already claimed or delivered
-   * today's report for this user.
-   */
-  if (error.code === "23505") {
-    return false;
-  }
-
-  throw new Error(
-    `Failed to claim Daily Report delivery: ${error.message}`,
-  );
-}
-
-async function releaseReportDelivery(
-  userId: string,
-  reportDate: string,
-) {
-  const supabase = createAdminClient();
-
-  const { error } = await supabase
-    .from("pet_report_deliveries")
-    .delete()
-    .eq("user_id", userId)
-    .eq("report_date", reportDate);
-
-  if (error) {
-    console.warn(
-      "Failed to release Daily Report delivery:",
-      error.message,
-    );
-  }
 }
 
 async function getOrCreateDailyReport({
@@ -319,12 +272,13 @@ export async function runPetDailyReports(): Promise<DailyReportStats> {
 
       stats.due += 1;
 
-      const claimed = await claimReportDelivery(
-        setting.user_id,
-        local.date,
-      );
+      const claimToken =
+        await claimPetReportDelivery({
+          userId: setting.user_id,
+          reportDate: local.date,
+        });
 
-      if (!claimed) {
+      if (!claimToken) {
         stats.skipped += 1;
 
         continue;
@@ -346,44 +300,99 @@ export async function runPetDailyReports(): Promise<DailyReportStats> {
           stats.reused += 1;
         }
 
-        const pushResult = await sendPushToUser(
-          setting.user_id,
-          {
-            title: "萌蛋的每日報告",
+        let pushDelivered = false;
 
-            body: buildPushBody(report.content),
+        try {
+          const pushResult =
+            await sendPushToUser(
+              setting.user_id,
+              {
+                title: "萌蛋的每日報告",
 
-            url: "/pet?view=report#pet-daily-report",
-          },
-        );
+                body:
+                  buildPushBody(
+                    report.content,
+                  ),
 
-        /*
-         * Report itself is already safely stored.
-         *
-         * If the user currently has no working Push
-         * subscription, release only the delivery claim.
-         *
-         * The next Cron run can retry Push without
-         * generating another LLM report.
-         */
-        if (pushResult.sent === 0) {
-          await releaseReportDelivery(
-            setting.user_id,
-            local.date,
-          );
+                url:
+                  "/pet?view=report#pet-daily-report",
+              },
+            );
 
-          stats.noDevice += 1;
+          /*
+           * Report generation and Push delivery are
+           * deliberately separate states.
+           *
+           * The report is already stored safely.
+           * If no device received the Push, release
+           * only the temporary delivery lease.
+           */
+          if (pushResult.sent === 0) {
+            await releasePetReportDeliveryClaim({
+              userId:
+                setting.user_id,
 
-          continue;
+              reportDate:
+                local.date,
+
+              claimToken,
+            });
+
+            stats.noDevice += 1;
+
+            continue;
+          }
+
+          pushDelivered = true;
+
+          const completed =
+            await completePetReportDelivery({
+              userId:
+                setting.user_id,
+
+              reportDate:
+                local.date,
+
+              claimToken,
+            });
+
+          if (!completed) {
+            /*
+             * Push already succeeded.
+             *
+             * Do not release here because the lease
+             * may have expired and been reclaimed by
+             * another worker.
+             */
+            console.warn(
+              "Daily Report was pushed but its delivery lease could not be completed.",
+            );
+          }
+
+          stats.notified += 1;
+        } catch (cause) {
+          /*
+           * Only release before Push success.
+           *
+           * If the Push succeeded but bookkeeping
+           * failed afterwards, deleting the claim
+           * could create an immediate duplicate Push.
+           */
+          if (!pushDelivered) {
+            await releasePetReportDeliveryClaim({
+              userId:
+                setting.user_id,
+
+              reportDate:
+                local.date,
+
+              claimToken,
+            });
+          }
+
+          throw cause;
         }
-
-        stats.notified += 1;
       } catch (cause) {
-        await releaseReportDelivery(
-          setting.user_id,
-          local.date,
-        );
-
         throw cause;
       }
     } catch (cause) {

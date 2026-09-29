@@ -639,30 +639,39 @@ export type Database = {
       }
       notification_deliveries: {
         Row: {
+          claim_token: string | null
+          claimed_at: string | null
           created_at: string
           id: string
           notification_key: string
           notification_type: string
-          sent_at: string
+          sent_at: string | null
           source_id: string | null
+          status: string
           user_id: string
         }
         Insert: {
+          claim_token?: string | null
+          claimed_at?: string | null
           created_at?: string
           id?: string
           notification_key: string
           notification_type: string
-          sent_at?: string
+          sent_at?: string | null
           source_id?: string | null
+          status?: string
           user_id: string
         }
         Update: {
+          claim_token?: string | null
+          claimed_at?: string | null
           created_at?: string
           id?: string
           notification_key?: string
           notification_type?: string
-          sent_at?: string
+          sent_at?: string | null
           source_id?: string | null
+          status?: string
           user_id?: string
         }
         Relationships: [
@@ -881,21 +890,30 @@ export type Database = {
       }
       pet_report_deliveries: {
         Row: {
+          claim_token: string | null
+          claimed_at: string | null
           id: string
           report_date: string
-          sent_at: string
+          sent_at: string | null
+          status: string
           user_id: string
         }
         Insert: {
+          claim_token?: string | null
+          claimed_at?: string | null
           id?: string
           report_date: string
-          sent_at?: string
+          sent_at?: string | null
+          status?: string
           user_id: string
         }
         Update: {
+          claim_token?: string | null
+          claimed_at?: string | null
           id?: string
           report_date?: string
-          sent_at?: string
+          sent_at?: string | null
+          status?: string
           user_id?: string
         }
         Relationships: [
@@ -1611,15 +1629,27 @@ export type Database = {
       }
       study_sync_state: {
         Row: {
-          last_synced_at: string
+          cool_last_synced_at: string | null
+          cool_sync_claim_token: string | null
+          cool_sync_claimed_at: string | null
+          last_synced_at: string | null
+          mail_last_synced_at: string | null
           user_id: string
         }
         Insert: {
-          last_synced_at: string
+          cool_last_synced_at?: string | null
+          cool_sync_claim_token?: string | null
+          cool_sync_claimed_at?: string | null
+          last_synced_at?: string | null
+          mail_last_synced_at?: string | null
           user_id: string
         }
         Update: {
-          last_synced_at?: string
+          cool_last_synced_at?: string | null
+          cool_sync_claim_token?: string | null
+          cool_sync_claimed_at?: string | null
+          last_synced_at?: string | null
+          mail_last_synced_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -1638,11 +1668,53 @@ export type Database = {
     }
     Functions: {
       cancel_date: { Args: { p_date_id: string }; Returns: undefined }
+      claim_cool_sync_lease: {
+        Args: { p_lease_seconds?: number; p_user_id: string }
+        Returns: string
+      }
       claim_initial_space: {
         Args: { space_name: string; space_slug: string }
         Returns: string
       }
+      claim_notification_delivery: {
+        Args: {
+          p_lease_seconds?: number
+          p_notification_key: string
+          p_notification_type: string
+          p_source_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      claim_pet_report_delivery: {
+        Args: {
+          p_lease_seconds?: number
+          p_report_date: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      complete_cool_sync_lease: {
+        Args: { p_claim_token: string; p_user_id: string }
+        Returns: boolean
+      }
       complete_date_recap: { Args: { p_date_id: string }; Returns: string }
+      complete_notification_delivery: {
+        Args: {
+          p_claim_token: string
+          p_notification_key: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      complete_pet_report_delivery: {
+        Args: {
+          p_claim_token: string
+          p_report_date: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       create_date_invitation: {
         Args: {
           p_description: string
@@ -1662,6 +1734,30 @@ export type Database = {
           database_bytes: number
           storage_bytes: number
         }[]
+      }
+      release_cool_sync_lease: {
+        Args: { p_claim_token: string; p_user_id: string }
+        Returns: boolean
+      }
+      release_notification_delivery_claim: {
+        Args: {
+          p_claim_token: string
+          p_notification_key: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      release_pet_report_delivery_claim: {
+        Args: {
+          p_claim_token: string
+          p_report_date: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      renew_cool_sync_lease: {
+        Args: { p_claim_token: string; p_user_id: string }
+        Returns: boolean
       }
       reorder_date_itinerary: {
         Args: { p_date_day_id: string; p_item_ids: string[] }
