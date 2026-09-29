@@ -38,13 +38,38 @@ export const petMemoryCandidateSchema = z.object({
   importance: z.number().int().min(1).max(3),
 });
 
-export const petTaskCandidateSchema = z.object({
-  title: z.string().min(1).max(120),
+export const petTaskTemporalKindSchema =
+  z.enum([
+    "scheduled",
+    "deadline",
+    "flexible",
+  ]);
 
-  note: z.string().max(300).nullable(),
+export const petTaskTimePrecisionSchema =
+  z.enum([
+    "none",
+    "date",
+    "daypart",
+    "exact",
+  ]);
 
-  dueAt: z.string().max(64).nullable(),
-});
+export const petTaskCandidateSchema =
+  z.object({
+    title:
+      z.string().min(1).max(120),
+
+    note:
+      z.string().max(300).nullable(),
+
+    dueAt:
+      z.string().max(64).nullable(),
+
+    temporalKind:
+      petTaskTemporalKindSchema,
+
+    timePrecision:
+      petTaskTimePrecisionSchema,
+  });
 
 export const petTaskActionSchema = z.object({
   action: z.enum(["create", "complete", "cancel"]),

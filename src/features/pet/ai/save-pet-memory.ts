@@ -27,7 +27,36 @@ function getExpiresAt(importance: number) {
   return expiresAt.toISOString();
 }
 
+function containsUnsafeRelativeTime(
+  content: string,
+) {
+  return /(?:今天|明天|後天|昨天|前天|這週[一二三四五六日天]|下週[一二三四五六日天]?|上週[一二三四五六日天]?)/u.test(
+    content,
+  );
+}
+
 export async function savePetMemory(memory: PetMemoryCandidate) {
+  /*
+   * Relative calendar words become stale as soon
+   * as the day changes.
+   *
+   * The model should normalize meaningful past
+   * events to absolute dates before persistence.
+   */
+  if (
+    memory.type === "temporary" &&
+    containsUnsafeRelativeTime(
+      memory.content,
+    )
+  ) {
+    console.warn(
+      "Skipped unsafe relative-time pet memory:",
+      memory.content,
+    );
+
+    return;
+  }
+
   const user = await requireUser();
   const supabase = await createClient();
   const pet = await getPet();

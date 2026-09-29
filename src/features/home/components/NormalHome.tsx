@@ -160,23 +160,6 @@ function getItemTime(
   return formatTime(item.startAt);
 }
 
-function getReportPreview(
-  content: string,
-) {
-  const normalized = content
-    .replace(/[#*_`>~-]+/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (normalized.length <= 220) {
-    return normalized;
-  }
-
-  return `${normalized
-    .slice(0, 219)
-    .trimEnd()}…`;
-}
-
 function SectionHeader({
   eyebrow,
   title,
@@ -679,56 +662,41 @@ export default async function NormalHome() {
           >
             <div className="p-6 sm:p-8">
               <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">
-                Daily report
+                Pet
               </p>
 
               <h2 className="font-story mt-2 text-3xl font-semibold">
-                {
-                  dashboard.pet
-                    .name
-                }
+                {dashboard.pet.name}
               </h2>
 
-              {dashboard.pet
-                .todayReport ? (
-                <>
-                  <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--muted)]">
-                    {getReportPreview(
-                      dashboard.pet
-                        .todayReport
-                        .content,
-                    )}
-                  </p>
+              <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--muted)]">
+                陪你聊天、記住重要的事情，也能幫你管理自己的待辦。
+                萌蛋還會整理 Date、Study 和近期事項，每天提供一份簡短的生活報告。
+              </p>
 
-                  <p className="mt-6 text-sm font-medium text-[var(--accent)]">
-                    看完整今日報告 →
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="mt-5 text-sm leading-7 text-[var(--muted)]">
-                    今天的 Daily Report
-                    還沒有產生。
-                  </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                <span className="rounded-full bg-[var(--surface-soft)] px-3 py-1.5 text-xs text-[var(--muted)]">
+                  聊天與記憶
+                </span>
 
-                  <p className="mt-3 text-xs text-[var(--muted)]">
-                    目前還有{" "}
-                    {
-                      dashboard.pet
-                        .pendingTaskCount
-                    }{" "}
-                    件萌蛋幫你記住的待辦。
-                  </p>
-                </>
-              )}
+                <span className="rounded-full bg-[var(--surface-soft)] px-3 py-1.5 text-xs text-[var(--muted)]">
+                  個人待辦
+                </span>
+
+                <span className="rounded-full bg-[var(--surface-soft)] px-3 py-1.5 text-xs text-[var(--muted)]">
+                  每日報告
+                </span>
+              </div>
+
+              <p className="mt-6 text-sm font-medium text-[var(--accent)]">
+                去找萌蛋 →
+              </p>
             </div>
 
             <div className="relative min-h-48 border-t border-[var(--border)] sm:min-h-56 sm:border-l sm:border-t-0">
               <Image
                 src="/pet/pet00.png"
-                alt={
-                  dashboard.pet.name
-                }
+                alt={dashboard.pet.name}
                 fill
                 sizes="(max-width: 640px) 100vw, 224px"
                 className="object-contain p-5 transition duration-300 group-hover:scale-[1.03]"

@@ -981,6 +981,8 @@ export type Database = {
           note: string | null
           pet_id: string
           status: string
+          temporal_kind: string
+          time_precision: string
           title: string
           updated_at: string
           user_id: string
@@ -994,6 +996,8 @@ export type Database = {
           note?: string | null
           pet_id: string
           status?: string
+          temporal_kind?: string
+          time_precision?: string
           title: string
           updated_at?: string
           user_id: string
@@ -1007,6 +1011,8 @@ export type Database = {
           note?: string | null
           pet_id?: string
           status?: string
+          temporal_kind?: string
+          time_precision?: string
           title?: string
           updated_at?: string
           user_id?: string

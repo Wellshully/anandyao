@@ -4,7 +4,10 @@ import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 
 import { selectPetMemories } from "@/features/pet/ai/select-pet-memories";
-import { getPendingPetTasks } from "@/features/pet/ai/get-pending-pet-tasks";
+import {
+  getPendingPetTasks,
+  type PendingPetTask,
+} from "@/features/pet/ai/get-pending-pet-tasks";
 
 import { getPet } from "@/features/pet/lib/get-pet";
 
@@ -60,6 +63,39 @@ function formatEventCreatedAt(
       hour12: false,
     },
   ).format(date);
+}
+
+function describeTaskTemporalState(
+  task: PendingPetTask,
+) {
+  switch (task.temporalState) {
+    case "undated":
+      return "沒有指定時間，目前只是一般待辦。";
+
+    case "today":
+      return "安排在今天，但沒有更精確的時間。";
+
+    case "later_today":
+      return "預期今天稍後發生，目前還沒到它的預期時間。";
+
+    case "passed_expected_time":
+      return "預期發生時間已經過去，但系統不知道主人是否真的完成或參加了。";
+
+    case "due_today":
+      return "今天截止，而且目前還沒有超過截止時間。";
+
+    case "tomorrow":
+      return "安排在明天。";
+
+    case "future":
+      return "安排在更晚的未來。";
+
+    case "overdue":
+      return "截止時間已經過去，而且系統仍未收到完成確認。";
+
+    case "expired":
+      return "這是一件已經過去的行程，不應再當成現在的待辦。";
+  }
 }
 
 type BuildPetContextOptions = {
@@ -255,7 +291,12 @@ export async function buildPetContext(
       return [
         `- taskId: ${task.id}`,
         `  標題：${task.title}`,
-        `  期限：${dueLabel}${noteLabel}`,
+        `  時間類型：${task.temporalKind}`,
+        `  時間精度：${task.timePrecision}`,
+        `  temporalState：${task.temporalState}`,
+        `  系統時間理解：${describeTaskTemporalState(task)}`,
+        `  系統中的時間：${dueLabel}${noteLabel}`,
+        "  完成狀態：系統尚未收到完成確認",
       ].join("\n");
     });
 

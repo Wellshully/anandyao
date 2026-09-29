@@ -93,13 +93,6 @@ function updateBrowserThemeColor(
    * chrome from the page background in some
    * situations, so update these synchronously.
    */
-  document.documentElement.style.backgroundColor =
-    color;
-
-  if (document.body) {
-    document.body.style.backgroundColor =
-      color;
-  }
 }
 
 function applyTheme(theme: ThemeId) {

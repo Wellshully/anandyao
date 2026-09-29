@@ -91,13 +91,6 @@ const themeBootScript = `
 
     document.head.prepend(meta);
 
-    document.documentElement.style.backgroundColor =
-      browserColor;
-
-    if (document.body) {
-      document.body.style.backgroundColor =
-        browserColor;
-    }
   } catch (_) {
     document.documentElement.dataset.theme =
       "an-yao";
