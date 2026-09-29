@@ -38,6 +38,32 @@ function getDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function getTimeKey(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: siteConfig.timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const hour = parts.find(
+    (part) => part.type === "hour",
+  )?.value;
+
+  const minute = parts.find(
+    (part) => part.type === "minute",
+  )?.value;
+
+  if (!hour || !minute) {
+    throw new Error(
+      "Failed to calculate Daily Report local time.",
+    );
+  }
+
+  return `${hour}:${minute}`;
+}
+
 function getDateRange(now: Date) {
   const today = getDateKey(now);
 
@@ -55,7 +81,17 @@ export type DailyReportStudyItem = {
   id: string;
   title: string;
   courseName: string;
+
+  /*
+   * dueAt is the machine timestamp.
+   *
+   * localDate/localTime are the authoritative
+   * Asia/Taipei values shown to the report AI.
+   */
   dueAt: string;
+  localDate: string;
+  localTime: string;
+
   late: boolean;
   missing: boolean;
   deadlinePassed: boolean;
@@ -65,7 +101,11 @@ export type DailyReportPetTaskItem = {
   id: string;
   title: string;
   note: string | null;
+
   dueAt: string | null;
+  localDate: string | null;
+  localTime: string | null;
+
   createdAt: string;
   deadlinePassed: boolean;
 };
@@ -110,6 +150,7 @@ export type DailyReportDateItem = {
 
 export type PetDailyReportContext = {
   currentDate: string;
+  currentTime: string;
   throughDate: string;
   timeZone: string;
 
@@ -294,7 +335,9 @@ export async function getPetDailyReportContext({
    * --------------------------------
    */
 
-  const studyItems: DailyReportStudyItem[] = (studyResult.data ?? [])
+  const studyItems: DailyReportStudyItem[] = (
+    studyResult.data ?? []
+  )
     .filter(
       (
         assignment,
@@ -302,22 +345,38 @@ export async function getPetDailyReportContext({
         due_at: string;
       } => assignment.due_at !== null,
     )
-    .map((assignment) => ({
-      id: assignment.id,
+    .map((assignment) => {
+      const dueDate = new Date(
+        assignment.due_at,
+      );
 
-      title: assignment.title,
+      return {
+        id: assignment.id,
 
-      courseName: assignment.course_name,
+        title: assignment.title,
 
-      dueAt: assignment.due_at,
+        courseName:
+          assignment.course_name,
 
-      late: assignment.late,
+        dueAt: assignment.due_at,
 
-      missing: assignment.missing,
+        localDate: getDateKey(
+          dueDate,
+        ),
 
-      deadlinePassed:
-        new Date(assignment.due_at).getTime() <= now.getTime(),
-    }));
+        localTime: getTimeKey(
+          dueDate,
+        ),
+
+        late: assignment.late,
+
+        missing: assignment.missing,
+
+        deadlinePassed:
+          dueDate.getTime() <=
+          now.getTime(),
+      };
+    });
 
   const studyOverdue = studyItems
     .filter((assignment) => {
@@ -349,21 +408,39 @@ export async function getPetDailyReportContext({
 
   const petTaskItems: DailyReportPetTaskItem[] = (
     petTasksResult.data ?? []
-  ).map((task) => ({
-    id: task.id,
+  ).map((task) => {
+    const dueDate =
+      task.due_at !== null
+        ? new Date(task.due_at)
+        : null;
 
-    title: task.title,
+    return {
+      id: task.id,
 
-    note: task.note,
+      title: task.title,
 
-    dueAt: task.due_at,
+      note: task.note,
 
-    createdAt: task.created_at,
+      dueAt: task.due_at,
 
-    deadlinePassed:
-      task.due_at !== null &&
-      new Date(task.due_at).getTime() <= now.getTime(),
-  }));
+      localDate:
+        dueDate !== null
+          ? getDateKey(dueDate)
+          : null,
+
+      localTime:
+        dueDate !== null
+          ? getTimeKey(dueDate)
+          : null,
+
+      createdAt: task.created_at,
+
+      deadlinePassed:
+        dueDate !== null &&
+        dueDate.getTime() <=
+          now.getTime(),
+    };
+  });
 
   const petTasksWithDueDate = petTaskItems.filter(
     (
@@ -570,6 +647,8 @@ export async function getPetDailyReportContext({
 
   return {
     currentDate: today,
+
+    currentTime: getTimeKey(now),
 
     throughDate: through,
 

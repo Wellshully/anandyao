@@ -17,23 +17,139 @@ const dailyReportSchema = z.object({
 
 export type GeneratedPetDailyReport = z.infer<typeof dailyReportSchema>;
 
+function addDaysToDateKey(
+  dateKey: string,
+  days: number,
+) {
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})$/.exec(
+      dateKey,
+    );
+
+  if (!match) {
+    throw new Error(
+      "Invalid Daily Report date key.",
+    );
+  }
+
+  const date = new Date(
+    Date.UTC(
+      Number(match[1]),
+      Number(match[2]) - 1,
+      Number(match[3]) + days,
+    ),
+  );
+
+  return date
+    .toISOString()
+    .slice(0, 10);
+}
+
 export async function generatePetDailyReport(
   context: PetDailyReportContext,
 ): Promise<GeneratedPetDailyReport> {
+  const tomorrowDate =
+    addDaysToDateKey(
+      context.currentDate,
+      1,
+    );
+
+  const dayAfterTomorrowDate =
+    addDaysToDateKey(
+      context.currentDate,
+      2,
+    );
+
   const prompt = `
 你現在要替主人產生「每日報告」。
 
 這不是聊天回覆。
 這是一份每天固定時間主動提供給主人的簡短生活提醒。
 
-目前日期：
-${context.currentDate}
+目前真實時間：
+- 今天日期：${context.currentDate}
+- 現在時間：${context.currentTime}
+- 明天日期：${tomorrowDate}
+- 後天日期：${dayAfterTomorrowDate}
+- 時區：${context.timeZone}
 
 資料涵蓋到：
 ${context.throughDate}
 
-時區：
-${context.timeZone}
+--------------------------------
+時間語意與日期歸屬規則
+--------------------------------
+
+這一段非常重要。
+
+所有「今天、明天、後天、之後、接下來幾天」
+都必須以上面的目前真實日期為基準。
+
+- 今天 = ${context.currentDate}
+- 明天 = ${tomorrowDate}
+- 後天 = ${dayAfterTomorrowDate}
+
+絕對不能因為某件事情出現在 upcoming 裡，
+就把它描述成「明天」。
+
+upcoming 的意思只是：
+
+「日期晚於今天，且仍在這份報告的近期範圍內。」
+
+每一件事情仍然有自己的真正日期。
+
+例如：
+
+如果：
+- 今天 = ${context.currentDate}
+- 明天 = ${tomorrowDate}
+- 某 Pet Task 的 localDate = 2026-10-04
+
+除非 ${tomorrowDate} 真的是 2026-10-04，
+否則絕對不能說：
+
+「明天要做這件事」
+
+而應該說：
+
+「10/4 要做這件事」
+
+或其他清楚保留真正日期的表達方式。
+
+日期資料可信度：
+
+1. Dates：
+   days.date 是這個行程真正發生的本地日期。
+
+2. Study：
+   localDate / localTime 是已經換算成
+   ${context.timeZone} 的真正截止日期與時間。
+
+3. Pet Tasks：
+   localDate / localTime 是已經換算成
+   ${context.timeZone} 的真正待辦日期與時間。
+
+dueAt 是機器使用的 timestamp。
+
+當 dueAt 與 localDate/localTime 同時存在時，
+在自然語言報告中應以 localDate/localTime
+判斷「今天、明天、後天、幾月幾日」。
+
+不要自行重新用 UTC 解讀 dueAt。
+
+study.dueToday 與 petTasks.dueToday
+已經由系統依 ${context.timeZone} 正確分類成今天。
+
+study.upcoming 與 petTasks.upcoming
+可能是明天，也可能是後天、10/4 或其他近期日期。
+
+必須逐筆查看 localDate，
+不能把整個 upcoming 類別統稱為「明天」。
+
+沒有 localDate 的 Pet Task
+代表沒有確定期限。
+
+不能自行把它歸類成今天、明天或其他日期。
 
 目前主人：
 ${context.user.displayName}

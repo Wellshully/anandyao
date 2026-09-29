@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { performPetAction } from "@/features/pet/actions";
 
 import { talkToPetAction } from "@/features/pet/ai/actions";
+
 import {
   trimPetConversation,
   type PetConversationMessage,
@@ -105,19 +106,42 @@ export default function PetPanel({
           return;
         }
 
-        const parsed = JSON.parse(stored);
+        const parsed: unknown = JSON.parse(stored);
 
         if (!Array.isArray(parsed)) {
           return;
         }
 
-        const validMessages = parsed.filter(
-          (item): item is PetConversationMessage =>
-            typeof item === "object" &&
-            item !== null &&
-            (item.role === "user" || item.role === "pet") &&
-            typeof item.content === "string",
-        );
+        /*
+         * Backward compatibility:
+         *
+         * Older stored conversations do not have
+         * createdAt. Keep them, but mark the time
+         * as unknown instead of pretending they
+         * happened now.
+         */
+        const validMessages: PetConversationMessage[] = parsed
+          .filter(
+            (
+              item,
+            ): item is {
+              role: "user" | "pet";
+              content: string;
+              createdAt?: unknown;
+            } =>
+              typeof item === "object" &&
+              item !== null &&
+              (item.role === "user" || item.role === "pet") &&
+              typeof item.content === "string",
+          )
+          .map((item) => ({
+            role: item.role,
+
+            content: item.content,
+
+            createdAt:
+              typeof item.createdAt === "string" ? item.createdAt : null,
+          }));
 
         const trimmed = trimPetConversation(validMessages);
 
@@ -150,6 +174,7 @@ export default function PetPanel({
     }
 
     setInteractionMessage("");
+
     setAiError("");
 
     /*
@@ -196,10 +221,22 @@ export default function PetPanel({
     }
 
     setAiError("");
+
     setInteractionMessage("");
 
     startTalkingTransition(async () => {
+      /*
+       * Record the user's message time BEFORE
+       * the server call.
+       *
+       * This matters when relative phrases like
+       * "today" / "tomorrow" are later shown as
+       * historical conversation.
+       */
+      const userMessageCreatedAt = new Date().toISOString();
+
       const result = await talkToPetAction(message, conversation);
+
       if (!result.success) {
         setAiError(result.error);
 
@@ -207,15 +244,22 @@ export default function PetPanel({
       }
 
       setPetReply(result.reply.reply);
+
+      const petMessageCreatedAt = new Date().toISOString();
+
       const nextConversation = trimPetConversation([
         ...conversation,
+
         {
           role: "user",
           content: message,
+          createdAt: userMessageCreatedAt,
         },
+
         {
           role: "pet",
           content: result.reply.reply,
+          createdAt: petMessageCreatedAt,
         },
       ]);
 
@@ -225,6 +269,7 @@ export default function PetPanel({
         conversationStorageKey,
         JSON.stringify(nextConversation),
       );
+
       setPetPose(result.reply.pose);
 
       setAnimation("idle");
@@ -318,24 +363,24 @@ export default function PetPanel({
       <form
         onSubmit={handleTalk}
         className="
-    mx-auto
-    mt-4
-    max-w-lg
-  "
+          mx-auto
+          mt-4
+          max-w-lg
+        "
       >
         <div className="flex items-end gap-3">
           <div
             className="
-        flex
-        min-w-0
-        flex-1
-        items-end
-        rounded-2xl
-        border
-        border-[var(--border)]
-        bg-[var(--surface)]
-        p-2
-      "
+              flex
+              min-w-0
+              flex-1
+              items-end
+              rounded-2xl
+              border
+              border-[var(--border)]
+              bg-[var(--surface)]
+              p-2
+            "
           >
             <textarea
               value={input}
@@ -345,18 +390,18 @@ export default function PetPanel({
               disabled={isTalking}
               placeholder="跟萌蛋說點什麼……"
               className="
-          min-h-10
-          min-w-0
-          flex-1
-          resize-none
-          bg-transparent
-          px-3
-          py-2
-          text-sm
-          outline-none
-          placeholder:text-[var(--muted)]
-          disabled:opacity-60
-        "
+                min-h-10
+                min-w-0
+                flex-1
+                resize-none
+                bg-transparent
+                px-3
+                py-2
+                text-sm
+                outline-none
+                placeholder:text-[var(--muted)]
+                disabled:opacity-60
+              "
             />
           </div>
 
@@ -364,20 +409,20 @@ export default function PetPanel({
             type="submit"
             disabled={isTalking || isInteractionPending || !input.trim()}
             className="
-        min-h-14
-        shrink-0
-        rounded-2xl
-        border
-        border-[var(--border)]
-        bg-[var(--surface)]
-        px-5
-        text-sm
-        font-medium
-        transition
-        hover:border-[var(--foreground)]
-        disabled:cursor-default
-        disabled:opacity-40
-      "
+              min-h-14
+              shrink-0
+              rounded-2xl
+              border
+              border-[var(--border)]
+              bg-[var(--surface)]
+              px-5
+              text-sm
+              font-medium
+              transition
+              hover:border-[var(--foreground)]
+              disabled:cursor-default
+              disabled:opacity-40
+            "
           >
             {isTalking ? "..." : "送出"}
           </button>
@@ -387,6 +432,7 @@ export default function PetPanel({
           <p className="mt-2 text-xs text-[var(--danger)]">{aiError}</p>
         )}
       </form>
+
       <div
         className="
           mt-10

@@ -1,8 +1,8 @@
 export type PetConversationMessage = {
   role: "user" | "pet";
   content: string;
+  createdAt: string | null;
 };
-
 export const PET_CONVERSATION_MAX_MESSAGES = 12;
 
 export const PET_CONVERSATION_CHAR_BUDGET = 2400;

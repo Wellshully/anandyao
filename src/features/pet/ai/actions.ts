@@ -1,6 +1,7 @@
 "use server";
 
 import { unstable_rethrow } from "next/navigation";
+
 import { z } from "zod";
 
 import {
@@ -23,6 +24,14 @@ const conversationSchema = z
       role: z.enum(["user", "pet"]),
 
       content: z.string().min(1).max(500),
+
+      /*
+       * optional keeps compatibility with older
+       * browser state.
+       *
+       * We normalize undefined to null below.
+       */
+      createdAt: z.string().datetime().nullable().optional(),
     }),
   )
   .max(PET_CONVERSATION_MAX_MESSAGES);
@@ -46,7 +55,20 @@ export async function talkToPetAction(
   try {
     const parsedConversation = conversationSchema.parse(conversation);
 
-    const safeConversation = trimPetConversation(parsedConversation);
+    /*
+     * Normalize historical messages that were
+     * stored before createdAt was introduced.
+     */
+    const normalizedConversation: PetConversationMessage[] =
+      parsedConversation.map((item) => ({
+        role: item.role,
+
+        content: item.content,
+
+        createdAt: item.createdAt ?? null,
+      }));
+
+    const safeConversation = trimPetConversation(normalizedConversation);
 
     const reply = await talkToPet(message, safeConversation);
 
@@ -86,6 +108,7 @@ export async function talkToPetAction(
 
     return {
       success: true,
+
       reply,
     };
   } catch (cause) {

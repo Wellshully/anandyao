@@ -1,11 +1,13 @@
 import "server-only";
 
 import { AI_CONFIG } from "@/lib/ai/config";
+
 import { generateStructured } from "@/lib/ai/generate-structured";
 
 import { siteConfig } from "@/config/site";
 
 import { buildPetContext } from "@/features/pet/ai/build-pet-context";
+
 import { buildAppContext } from "@/features/pet/ai/context/build-app-context";
 
 import {
@@ -18,17 +20,95 @@ import { PET_PERSONA } from "@/features/pet/ai/pet-persona";
 import { petReplySchema, type PetReply } from "@/features/pet/ai/pet-reply";
 
 function getCurrentLocalTimeContext() {
+  const now = new Date();
+
+  const dateParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: siteConfig.timeZone,
+
+    year: "numeric",
+
+    month: "2-digit",
+
+    day: "2-digit",
+  }).formatToParts(now);
+
+  const timeParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: siteConfig.timeZone,
+
+    hour: "2-digit",
+
+    minute: "2-digit",
+
+    second: "2-digit",
+
+    hour12: false,
+
+    hourCycle: "h23",
+  }).formatToParts(now);
+
+  const weekday = new Intl.DateTimeFormat("zh-TW", {
+    timeZone: siteConfig.timeZone,
+
+    weekday: "long",
+  }).format(now);
+
+  const year = dateParts.find((part) => part.type === "year")?.value;
+
+  const month = dateParts.find((part) => part.type === "month")?.value;
+
+  const day = dateParts.find((part) => part.type === "day")?.value;
+
+  const hour = timeParts.find((part) => part.type === "hour")?.value;
+
+  const minute = timeParts.find((part) => part.type === "minute")?.value;
+
+  const second = timeParts.find((part) => part.type === "second")?.value;
+
+  if (!year || !month || !day || !hour || !minute || !second) {
+    throw new Error("Failed to calculate current Pet local time.");
+  }
+
+  return {
+    date: `${year}-${month}-${day}`,
+
+    time: `${hour}:${minute}:${second}`,
+
+    weekday,
+
+    timeZone: siteConfig.timeZone,
+  };
+}
+
+function formatConversationTimestamp(createdAt: string | null) {
+  if (!createdAt) {
+    return "時間未知的舊對話";
+  }
+
+  const date = new Date(createdAt);
+
+  if (!Number.isFinite(date.getTime())) {
+    return "時間未知的舊對話";
+  }
+
   return new Intl.DateTimeFormat("zh-TW", {
     timeZone: siteConfig.timeZone,
+
     year: "numeric",
+
     month: "2-digit",
+
     day: "2-digit",
-    weekday: "long",
+
+    weekday: "short",
+
     hour: "2-digit",
+
     minute: "2-digit",
-    second: "2-digit",
+
     hour12: false,
-  }).format(new Date());
+
+    hourCycle: "h23",
+  }).format(date);
 }
 
 export async function talkToPet(
@@ -58,6 +138,7 @@ export async function talkToPet(
    */
   const memoryQuery = [
     ...recentConversation.slice(-4).map((item) => item.content),
+
     normalized,
   ].join("\n");
 
@@ -80,9 +161,11 @@ export async function talkToPet(
           .map((item) => {
             const speaker = item.role === "user" ? "主人" : "你";
 
-            return `${speaker}：${item.content}`;
+            const timestamp = formatConversationTimestamp(item.createdAt);
+
+            return [`[${timestamp}]`, `${speaker}：${item.content}`].join("\n");
           })
-          .join("\n")
+          .join("\n\n")
       : "目前還沒有前面的對話。";
 
   const currentLocalTime = getCurrentLocalTimeContext();
@@ -102,10 +185,158 @@ ${appContext}
     : ""
 }
 
-目前時間：
-${currentLocalTime}
-時區：
-${siteConfig.timeZone}
+目前真實時間：
+- 日期：${currentLocalTime.date}
+- 時間：${currentLocalTime.time}
+- 星期：${currentLocalTime.weekday}
+- 時區：${currentLocalTime.timeZone}
+
+--------------------------------
+時間理解規則
+--------------------------------
+
+「現在」只能以上方提供的真實時間為準。
+
+目前這一則主人訊息中的相對日期：
+
+- 「今天」一定是 ${currentLocalTime.date}。
+- 「明天」是今天的下一個日曆日。
+- 「後天」是今天之後第二個日曆日。
+- 「昨天」是今天的前一個日曆日。
+- 「這週」、「下週」、「星期幾」等相對日期，都必須以上面的真實日期與 ${currentLocalTime.timeZone} 為基準。
+- 不可以把模型訓練資料中的日期、伺服器 UTC 日期或最近對話中的舊日期當成現在時間。
+
+非常重要：
+
+歷史對話中的「今天」、「明天」、「昨天」、「後天」、「下週」等相對時間，
+不是以現在的日期重新解讀。
+
+必須以「那一則歷史訊息自己的時間」作為基準。
+
+例如：
+
+如果歷史訊息是：
+
+[2026/09/27 22:00]
+主人：明天要去新竹
+
+那句「明天」代表的是 2026-09-28。
+
+即使目前真正日期已經是 2026-09-28，
+也絕對不能把那句歷史訊息重新理解成
+「2026-09-29 要去新竹」。
+
+如果歷史訊息顯示：
+
+[時間未知的舊對話]
+
+則其中的「今天」、「明天」、「昨天」、「後天」、「下週」等相對日期
+不能使用目前日期重新解析。
+
+這些時間未知的舊訊息只能作為對話背景，
+不能單獨作為判定現在實際日期安排的依據。
+
+--------------------------------
+時間資料可信度
+--------------------------------
+
+如果不同資料中對時間的描述可能產生衝突，
+請依照以下優先順序理解：
+
+第一優先：
+網站提供的結構化真實資料，例如：
+
+- Dates 的 startDate / endDate / days.date / fixedStartTime
+- Study 的 dueAt
+- Pet Tasks 的 dueAt
+
+第二優先：
+有 createdAt 時間的歷史對話。
+
+第三優先：
+沒有 createdAt 的舊對話文字。
+
+也就是：
+
+如果歷史聊天曾經說：
+
+「明天要去新竹」
+
+但 Pet Task 現在明確顯示：
+
+去新竹
+dueAt = 2026-09-28
+
+就要相信 2026-09-28 這個實際日期。
+
+不要因為現在重新看到「明天」兩個字，
+就把它變成目前日期的下一天。
+
+--------------------------------
+日期歸屬規則
+--------------------------------
+
+每一件事情都必須保留它真正的日期。
+
+不可以因為主人現在正在問「今天」或「明天」，
+就把其他日期的事情錯誤描述成今天或明天。
+
+例如：
+
+目前日期 = 2026-09-28
+
+主人問：
+「明天要幹嘛？」
+
+如果有：
+
+2026-10-04 練團
+
+可以回答：
+
+「明天目前沒有特別安排，不過 10/4 要練團。」
+
+不可以回答：
+
+「明天要練團。」
+
+除非明天真的就是 10/4。
+
+同理適用於：
+
+- 今天
+- 明天
+- 後天
+- 昨天
+- 某個星期幾
+- 某個明確日期
+- 這週
+- 下週
+
+如果主人指定的日期本身沒有事情：
+
+可以直接說該日期目前沒有看到特別安排。
+
+之後可以視情況補充其他近期事項，
+但必須清楚說出那些事情真正的日期。
+
+沒有 dueAt 的待辦：
+
+不能自行歸類成今天、明天或任何特定日期。
+
+如果主人說「今天」、「明天」等相對時間，
+在回答以及建立 task 的 dueAt 時，
+都要先按照上述規則解析。
+
+如果沒有明確時間，只知道日期，
+task dueAt 可以使用該日 23:59:59。
+
+不要在正常回答中刻意報出完整系統時間，
+除非主人詢問時間或日期。
+
+--------------------------------
+最近對話
+--------------------------------
 
 以下是你和這位主人最近的對話：
 
@@ -175,10 +406,12 @@ task.note：
 
 task.dueAt：
 - 有明確日期或可合理解析的相對日期時，使用 ISO 8601。
+- 「今天」、「明天」、「後天」、「下週」等相對日期，必須以上方提供的目前真實日期為基準計算。
 - 時區使用 Asia/Taipei。
-- 只有日期沒有時間時，可以使用當天 23:59:59。
+- 只有日期沒有時間時，可以使用該日 23:59:59。
 - 完全沒有期限就填 null。
 - 不可以自行猜期限。
+- 不可以使用模型自己假設的現在日期。
 
 ========
 complete
@@ -193,6 +426,7 @@ complete
 - 「剛剛那件事情完成了」
 
 只有在你可以根據：
+
 1. pending task 清單
 2. 最近對話
 
@@ -209,6 +443,7 @@ cancel
 ========
 
 當主人表示某一件 pending task：
+
 - 不需要做了
 - 打錯了
 - 不想記了
@@ -289,6 +524,7 @@ memory = null
 
 importance 1：
 短期內可能有用，但未必長期成立的資訊。
+
 例如：
 - 最近正在準備考試
 - 最近工作很多
@@ -297,11 +533,13 @@ importance 1：
 這類記憶之後可能會過期。
 
 注意：
+
 具體「要做的事情」現在應優先存成 task，
 不要再只存成 temporary memory。
 
 importance 2：
 相對穩定，而且未來再次互動時有價值的個人資訊。
+
 例如：
 - 飲食偏好
 - 興趣
@@ -311,6 +549,7 @@ importance 2：
 
 importance 3：
 對主人身份、兩位主人的關係、共同歷史具有明顯長期意義的核心資訊。
+
 例如：
 - 重要紀念日
 - 第一次約會
@@ -318,9 +557,11 @@ importance 3：
 - 具有特殊意義的共同回憶
 
 importance 3 必須非常保守。
+
 不確定 importance 等級時，一律選較低等級。
 
 以下內容通常不要形成記憶：
+
 - 一般閒聊
 - 問句本身
 - 笑聲
@@ -333,17 +574,20 @@ importance 3 必須非常保守。
 - 僅僅因為網站資料中存在的資訊
 
 memory.content 必須：
+
 - 使用簡短、獨立、未來仍看得懂的陳述句
 - 不保存整段聊天原文
 - 不加入主人沒有說過的推測
 - 最多 200 字
 
 memory.subject：
+
 - 資訊主要描述目前跟你說話的人：current_user
 - 資訊主要描述另一位主人：partner
 - 資訊描述兩位主人共同的事情或共同回憶：shared
 
 memory.type：
+
 - preference：喜好、討厭、偏好
 - person_fact：個人事實
 - shared_memory：兩位主人共同經歷或共同歷史
@@ -358,13 +602,17 @@ memory.type：
 - dueAt 格式
 
 不要假裝記得最近對話或提供資料以外的事情。
+
 不要重複列出數值。
+
 不要解釋你的推理。
 `.trim();
 
   return generateStructured({
     systemInstruction: PET_PERSONA,
+
     prompt,
+
     schema: petReplySchema,
   });
 }

@@ -320,6 +320,70 @@ export async function syncNtuCoolForUser(
       }
     }
 
+    /*
+     * ===============================
+     * Snapshot reconciliation
+     * ===============================
+     *
+     * At this point ALL current COOL data has been
+     * fetched successfully and upserted.
+     *
+     * Every current row was stamped with exactly
+     * the same `now` value above.
+     *
+     * Rows for this user whose synced_at is older
+     * therefore belong to an older snapshot and
+     * are no longer returned by COOL.
+     *
+     * Never perform this cleanup before all remote
+     * fetching succeeds. If COOL fails halfway,
+     * execution jumps to catch and old data remains
+     * available instead of being accidentally lost.
+     */
+
+    const { error: staleAssignmentsError } =
+      await supabase
+        .from("study_assignments")
+        .delete()
+        .eq("user_id", userId)
+        .lt("synced_at", now);
+
+    if (staleAssignmentsError) {
+      throw new Error(
+        `Failed to reconcile stale Study assignments: ${staleAssignmentsError.message}`,
+      );
+    }
+
+    const { error: staleAnnouncementsError } =
+      await supabase
+        .from("study_announcements")
+        .delete()
+        .eq("user_id", userId)
+        .lt("synced_at", now);
+
+    if (staleAnnouncementsError) {
+      throw new Error(
+        `Failed to reconcile stale Study announcements: ${staleAnnouncementsError.message}`,
+      );
+    }
+
+    /*
+     * Courses are cleaned last in case child rows
+     * ever gain foreign-key relationships.
+     */
+    const { error: staleCoursesError } =
+      await supabase
+        .from("study_courses")
+        .delete()
+        .eq("user_id", userId)
+        .lt("synced_at", now);
+
+    if (staleCoursesError) {
+      throw new Error(
+        `Failed to reconcile stale Study courses: ${staleCoursesError.message}`,
+      );
+    }
+
     const result: SyncNtuCoolResult = {
       courses: courseRows.length,
 
