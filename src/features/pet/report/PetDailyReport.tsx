@@ -1,3 +1,5 @@
+import MarkdownContent from "@/features/journal/components/MarkdownContent";
+
 import type { PetDailyReport as PetDailyReportData } from "@/features/pet/report/types";
 
 type PetDailyReportProps = {
@@ -82,11 +84,10 @@ export default function PetDailyReport({
                 bg-[var(--surface-soft)]
                 px-5
                 py-4
+                text-sm
               "
             >
-              <p className="whitespace-pre-wrap text-sm leading-7">
-                {report.content}
-              </p>
+              <MarkdownContent content={report.content} />
             </div>
 
             <p className="mt-3 text-right text-xs text-[var(--muted)]">
