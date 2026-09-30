@@ -39,6 +39,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      calendar_item_notes: {
+        Row: {
+          created_at: string
+          id: string
+          note: string
+          source_id: string
+          source_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string
+          source_id: string
+          source_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string
+          source_id?: string
+          source_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_item_notes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       date_days: {
         Row: {
           created_at: string
@@ -424,6 +462,44 @@ export type Database = {
             columns: ["space_id"]
             isOneToOne: false
             referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_calendar_connections: {
+        Row: {
+          connected_at: string
+          primary_calendar_id: string | null
+          primary_calendar_summary: string | null
+          refresh_token: string
+          scope: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connected_at?: string
+          primary_calendar_id?: string | null
+          primary_calendar_summary?: string | null
+          refresh_token: string
+          scope: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          connected_at?: string
+          primary_calendar_id?: string | null
+          primary_calendar_summary?: string | null
+          refresh_token?: string
+          scope?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_connections_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -882,6 +958,75 @@ export type Database = {
           {
             foreignKeyName: "pet_memories_subject_user_id_fkey"
             columns: ["subject_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pet_recurring_schedules: {
+        Row: {
+          created_at: string
+          created_from: string
+          id: string
+          note: string | null
+          pet_id: string
+          recurrence_end_date: string | null
+          recurrence_expression: string | null
+          recurrence_rule: string
+          recurrence_start_date: string
+          start_time: string | null
+          status: string
+          time_precision: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_from?: string
+          id?: string
+          note?: string | null
+          pet_id: string
+          recurrence_end_date?: string | null
+          recurrence_expression?: string | null
+          recurrence_rule: string
+          recurrence_start_date: string
+          start_time?: string | null
+          status?: string
+          time_precision?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_from?: string
+          id?: string
+          note?: string | null
+          pet_id?: string
+          recurrence_end_date?: string | null
+          recurrence_expression?: string | null
+          recurrence_rule?: string
+          recurrence_start_date?: string
+          start_time?: string | null
+          status?: string
+          time_precision?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pet_recurring_schedules_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pet_recurring_schedules_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

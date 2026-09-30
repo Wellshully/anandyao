@@ -38,6 +38,60 @@ function normalizeTaskTitle(
   return normalized;
 }
 
+
+export function normalizePetTaskDueAt(
+  value: string | null,
+  precision: PetTaskCandidate["timePrecision"],
+) {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+
+  if (precision === "date") {
+    const match = trimmed.match(
+      /^(\d{4}-\d{2}-\d{2})/,
+    );
+
+    if (!match) {
+      return null;
+    }
+
+    return new Date(
+      `${match[1]}T23:59:59+08:00`,
+    ).toISOString();
+  }
+
+  const dateOnlyPattern =
+    /^\d{4}-\d{2}-\d{2}$/;
+
+  if (dateOnlyPattern.test(trimmed)) {
+    return new Date(
+      `${trimmed}T23:59:59+08:00`,
+    ).toISOString();
+  }
+
+  const hasTimezone =
+    /(?:Z|[+-]\d{2}:\d{2})$/i.test(
+      trimmed,
+    );
+
+  const candidate =
+    hasTimezone
+      ? trimmed
+      : `${trimmed}+08:00`;
+
+  const timestamp =
+    Date.parse(candidate);
+
+  if (Number.isNaN(timestamp)) {
+    return null;
+  }
+
+  return new Date(timestamp).toISOString();
+}
+
 export async function savePetTask(
   task: PetTaskCandidate,
 ) {

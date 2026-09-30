@@ -38,44 +38,60 @@ export const petMemoryCandidateSchema = z.object({
   importance: z.number().int().min(1).max(3),
 });
 
-export const petTaskTemporalKindSchema =
-  z.enum([
-    "scheduled",
-    "deadline",
-    "flexible",
-  ]);
+export const petTaskTemporalKindSchema = z.enum([
+  "scheduled",
+  "deadline",
+  "flexible",
+]);
 
-export const petTaskTimePrecisionSchema =
-  z.enum([
-    "none",
-    "date",
-    "daypart",
-    "exact",
-  ]);
+export const petTaskTimePrecisionSchema = z.enum([
+  "none",
+  "date",
+  "daypart",
+  "exact",
+]);
 
-export const petTaskCandidateSchema =
-  z.object({
-    title:
-      z.string().min(1).max(120),
+export const petTaskCandidateSchema = z.object({
+  title: z.string().min(1).max(120),
 
-    note:
-      z.string().max(300).nullable(),
+  note: z.string().max(300).nullable(),
 
-    dueAt:
-      z.string().max(64).nullable(),
+  dueAt: z.string().max(64).nullable(),
 
-    temporalKind:
-      petTaskTemporalKindSchema,
+  temporalKind: petTaskTemporalKindSchema,
 
-    timePrecision:
-      petTaskTimePrecisionSchema,
+  timePrecision: petTaskTimePrecisionSchema,
 
-    timeExpression:
-      z.string().max(64).nullable(),
-  });
+  timeExpression: z.string().max(64).nullable(),
+});
+
+export const petRecurringScheduleCandidateSchema = z.object({
+  title: z.string().min(1).max(120),
+
+  note: z.string().max(300).nullable(),
+
+  /*
+   * Preserve the owner's original
+   * recurrence wording.
+   *
+   * Examples:
+   * 每週二跟五
+   * 隔週四
+   * 每週二晚上七點
+   */
+  recurrenceExpression: z.string().min(1).max(120),
+});
+
+export const petRecurringScheduleActionSchema = z.object({
+  action: z.enum(["create", "cancel"]),
+
+  scheduleId: z.string().max(64).nullable(),
+
+  schedule: petRecurringScheduleCandidateSchema.nullable(),
+});
 
 export const petTaskActionSchema = z.object({
-  action: z.enum(["create", "complete", "cancel"]),
+  action: z.enum(["create", "update", "complete", "cancel"]),
 
   /*
    * create:
@@ -99,6 +115,8 @@ export const petReplySchema = z.object({
   memory: petMemoryCandidateSchema.nullable(),
 
   taskActions: z.array(petTaskActionSchema).max(3),
+
+  recurringScheduleActions: z.array(petRecurringScheduleActionSchema).max(3),
 });
 
 export type PetPose = z.infer<typeof petPoseSchema>;
@@ -114,3 +132,11 @@ export type PetTaskCandidate = z.infer<typeof petTaskCandidateSchema>;
 export type PetTaskActionCandidate = z.infer<typeof petTaskActionSchema>;
 
 export type PetReply = z.infer<typeof petReplySchema>;
+
+export type PetRecurringScheduleCandidate = z.infer<
+  typeof petRecurringScheduleCandidateSchema
+>;
+
+export type PetRecurringScheduleAction = z.infer<
+  typeof petRecurringScheduleActionSchema
+>;

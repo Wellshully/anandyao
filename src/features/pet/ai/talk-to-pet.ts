@@ -9,6 +9,7 @@ import { siteConfig } from "@/config/site";
 import { buildPetContext } from "@/features/pet/ai/build-pet-context";
 
 import { buildAppContext } from "@/features/pet/ai/context/build-app-context";
+
 import {
   getPendingTaskQueryScope,
   isRecentActivityQuestion,
@@ -115,6 +116,120 @@ function formatConversationTimestamp(createdAt: string | null) {
   }).format(date);
 }
 
+function looksLikeTaskMutation(message: string) {
+  const normalized = message.normalize("NFKC").toLocaleLowerCase();
+
+  return (
+    /改成/u.test(normalized) ||
+    /改到/u.test(normalized) ||
+    /改為/u.test(normalized) ||
+    /改一下/u.test(normalized) ||
+    /換成/u.test(normalized) ||
+    /延到/u.test(normalized) ||
+    /延後/u.test(normalized) ||
+    /延期/u.test(normalized) ||
+    /提前/u.test(normalized) ||
+    /取消/u.test(normalized) ||
+    /刪掉/u.test(normalized) ||
+    /刪除/u.test(normalized) ||
+    /移除/u.test(normalized) ||
+    /不要了/u.test(normalized) ||
+    /不用了/u.test(normalized) ||
+    /做完了/u.test(normalized) ||
+    /完成了/u.test(normalized) ||
+    /沒改到/u.test(normalized) ||
+    /沒有改到/u.test(normalized) ||
+    /沒更新/u.test(normalized) ||
+    /沒有更新/u.test(normalized) ||
+    /沒改成功/u.test(normalized) ||
+    /沒有改成功/u.test(normalized) ||
+    /還是舊/u.test(normalized)
+  );
+}
+
+function isTaskMutationCorrection(message: string) {
+  const normalized = message.normalize("NFKC").toLocaleLowerCase();
+
+  return (
+    /(?:沒|沒有|還沒).{0,8}(?:改|修改|更新|刪|刪除|取消|完成|移除)/u.test(
+      normalized,
+    ) ||
+    /(?:改|修改|更新|刪|刪除|取消|完成|移除).{0,8}(?:失敗|沒成功|沒有成功|沒改到)/u.test(
+      normalized,
+    ) ||
+    /還是.{0,8}(?:舊|原本|之前)/u.test(normalized)
+  );
+}
+
+function replyClaimsMutationSuccess(reply: string) {
+  const normalized = reply.normalize("NFKC").replace(/\s+/gu, "");
+
+  return (
+    /(?:幫你|已經|有|替你).{0,8}(?:改|修改|更新)(?:好|了|完成)/u.test(
+      normalized,
+    ) ||
+    /(?:改|修改|更新)(?:好|好了|完成了)/u.test(normalized) ||
+    /(?:幫你|已經|有|替你).{0,8}(?:取消|刪除|刪掉|移除)(?:了|完成)/u.test(
+      normalized,
+    ) ||
+    /(?:取消|刪除|刪掉|移除)(?:好了|完成了|了)/u.test(normalized) ||
+    /(?:幫你|已經|有|替你).{0,8}(?:完成|標記完成)(?:了|完成)/u.test(normalized)
+  );
+}
+
+function getEffectiveTaskQueryScope(
+  message: string,
+  conversation: PetConversationMessage[],
+) {
+  const directScope = getPendingTaskQueryScope(message);
+
+  if (directScope) {
+    return directScope;
+  }
+
+  /*
+   * Intent router safety net.
+   *
+   * For example:
+   *
+   * "動物園改成 10/11"
+   *
+   * must load pending tasks even if the
+   * intent router somehow misses it.
+   */
+  if (looksLikeTaskMutation(message) && !isTaskMutationCorrection(message)) {
+    return "mutation" as const;
+  }
+
+  /*
+   * Follow-up correction:
+   *
+   * "你沒改到"
+   *
+   * Search only previous USER messages.
+   * Pet's own reply is never evidence that
+   * a mutation was actually requested or done.
+   */
+  if (isTaskMutationCorrection(message)) {
+    const previousUserMessages = conversation
+      .filter((item) => item.role === "user")
+      .slice(-4)
+      .reverse();
+
+    const previousMutation = previousUserMessages.find((item) => {
+      const scope = getPendingTaskQueryScope(item.content);
+
+      return scope === "mutation" || looksLikeTaskMutation(item.content);
+    });
+
+    if (previousMutation) {
+      return "mutation" as const;
+    }
+  }
+
+  return null;
+}
+
 export async function talkToPet(
   message: string,
   conversation: PetConversationMessage[] = [],
@@ -134,70 +249,73 @@ export async function talkToPet(
   const recentConversation = trimPetConversation(conversation);
 
   /*
-   * Use only the most recent part of the conversation
-   * when deciding which long-term memories are relevant.
+   * --------------------------------
+   * Memory retrieval
+   * --------------------------------
    *
-   * This selection happens locally and does not require
-   * another LLM call.
+   * Only the USER'S previous messages can
+   * influence semantic-memory retrieval.
+   *
+   * Pet's own generated replies are not facts.
    */
   const memoryQuery = [
-    ...recentConversation.slice(-4).map((item) => item.content),
+    ...recentConversation
+      .filter((item) => item.role === "user")
+      .slice(-4)
+      .map((item) => item.content),
 
     normalized,
   ].join("\n");
 
-  const recentActivityQuestion =
-    isRecentActivityQuestion(normalized);
+  const recentActivityQuestion = isRecentActivityQuestion(normalized);
 
-  const taskQueryScope =
-    getPendingTaskQueryScope(
-      normalized,
-    );
+  const taskQueryScope = getEffectiveTaskQueryScope(
+    normalized,
+    recentConversation,
+  );
 
-  const includePendingTaskContext =
-    taskQueryScope !== null;
+  const includePendingTaskContext = taskQueryScope !== null;
 
   /*
    * Context boundaries:
    *
    * Normal conversation:
-   *   semantic memories only.
+   *   semantic memories.
    *
    * Task conversation:
-   *   current user's pending tasks, but no
-   *   unrelated long-term memories.
+   *   authoritative pending tasks.
    *
-   * "剛剛 / 剛才" activity questions:
-   *   no long-term memories, tasks, Places or
-   *   broad historical App context may be used
-   *   as evidence of recent activity.
+   * Recent activity:
+   *   no broad historical data may be used
+   *   as evidence for "剛剛".
    */
-  const [petContext, appContext] =
-    await Promise.all([
-      buildPetContext(
-        memoryQuery,
-        {
-          includeMemories:
-            !recentActivityQuestion &&
-            !includePendingTaskContext,
+  const [petContext, appContext] = await Promise.all([
+    buildPetContext(memoryQuery, {
+      includeMemories: !recentActivityQuestion && !includePendingTaskContext,
 
-          includePendingTasks:
-            includePendingTaskContext,
-        },
-      ),
+      includePendingTasks: includePendingTaskContext,
+    }),
 
-      recentActivityQuestion
-        ? Promise.resolve("")
-        : buildAppContext({
-            message: normalized,
-          }),
-    ]);
+    recentActivityQuestion
+      ? Promise.resolve("")
+      : buildAppContext({
+          message: normalized,
+        }),
+  ]);
 
+  /*
+   * Conversation remains useful for natural
+   * continuity, but Pet-generated lines are
+   * explicitly marked as non-authoritative.
+   */
   const conversationText =
     recentConversation.length > 0
       ? recentConversation
           .map((item) => {
-            const speaker = item.role === "user" ? "主人" : "你";
+            const speaker =
+              item.role === "user"
+                ? "主人"
+                : "你（歷史生成回覆，不代表資料庫操作成功）";
 
             const timestamp = formatConversationTimestamp(item.createdAt);
 
@@ -230,101 +348,190 @@ ${appContext}
 - 時區：${currentLocalTime.timeZone}
 
 --------------------------------
+資料可信度
+--------------------------------
+
+如果資訊互相衝突，可信度順序：
+
+1. 這一輪系統提供的 structured database data
+2. 主人目前這則訊息明確提供的新資訊
+3. 主人之前真正說過的內容
+4. 你自己以前產生的回覆
+
+第 4 項不是事實來源。
+
+你自己以前可能說過：
+
+「好，我幫你改好了。」
+「已經改成 10/11。」
+「已經取消了。」
+「完成了。」
+
+這些句子不能證明資料庫真的修改成功。
+
+如果你以前說：
+「已經改成 10/11」
+
+但目前 structured pending task 仍然顯示：
+
+dueAt = 2026-10-10
+
+那麼真實狀態就是：
+
+目前資料庫仍然是 10/10。
+
+必須相信 structured data。
+
+--------------------------------
 待辦查詢範圍
 --------------------------------
 
 這一輪的 taskQueryScope：
-${taskQueryScope ?? "none"}
 
-如果 taskQueryScope 是查詢型：
+${taskQueryScope ?? "none"}
 
 today：
 只回答今天相關的 pending tasks。
 
 tomorrow：
-必須完整回答所有 temporalState = tomorrow 的 pending tasks。
+必須完整回答所有
+temporalState = tomorrow
+的 pending tasks。
+
 如果有兩件，就必須包含兩件。
-不要因為其中一件剛出現在最近對話，就忽略其他資料庫中的 task。
+
+不要因為其中一件出現在最近對話，
+就忽略其他 database tasks。
 
 week：
 回答本週相關的所有 pending tasks。
-依目前真實日期與每筆 task 的系統時間判斷。
-不要只挑其中一兩件代表。
 
 all：
 回答目前所有有效 pending tasks。
 
 mutation：
-表示主人主要是在完成、取消或修改待辦，
-不需要把所有待辦重新列出。
+表示主人正在建立、修改、完成
+或取消待辦。
 
-重要：
+mutation 時，
+structured pending task
+是目前 task 狀態與 taskId
+的權威來源。
 
-當主人問「我明天要幹嘛？」、
-「我今天要做什麼？」、
-「我這週有什麼事？」這類問題時，
+--------------------------------
+修改失敗後重新處理
+--------------------------------
 
-系統提供的 pending task context
-是目前主人待辦的權威資料來源。
+如果主人說：
 
-如果有多筆符合詢問時間範圍，
-回答必須涵蓋所有符合項目，
-不能只根據最近對話挑一筆。
+- 你沒改到
+- 你沒有改成功
+- 還是舊日期
+- 你根本沒更新
+- 剛剛那個沒有刪掉
+
+不要相信你自己的上一則回答。
+
+先看 structured pending task。
+
+如果 structured task 仍是舊狀態，
+
+而最近主人真正說過的訊息中
+有明確修改要求，
+
+就重新產生正確 action。
+
+例如：
+
+主人先前說：
+
+「動物園改成 10/11」
+
+structured task 現在仍然：
+
+title = 去動物園
+dueAt = 2026-10-10
+
+主人現在說：
+
+「你沒改到」
+
+應重新產生 update action，
+把原本 task 修改為 10/11。
+
+如果 structured task 已經是 10/11，
+
+則代表現在 database 已經是新值。
+
+不要再重複 update。
 
 --------------------------------
 時間理解模型
 --------------------------------
 
-目前真實時間以上方系統提供的時間為準。
+目前真實時間以上方系統時間為準。
 
-網站中的結構化資料如果已經提供：
+網站中的 structured data
+如果已經提供：
+
 - temporalState
 - temporalKind
 - timePrecision
 - temporalStatus
 
-這些欄位代表系統已經計算好的時間關係。
+這些是系統已經計算好的時間關係。
 
-不要重新根據 dueAt 猜測它現在是：
+不要重新根據 dueAt 猜測：
+
 - 過去
 - 現在
 - 今天稍後
 - 明天
 - overdue
 
-應優先相信系統提供的 temporal state。
+應優先相信 temporal state。
 
 對 Pet Task：
 
 temporalKind = scheduled
-代表某件預期在特定日期、時段或時間發生的事情，例如：
-回診、上課、家教、聚餐、去某個地方。
+
+代表某件預期在特定日期、
+時段或時間發生的事情，例如：
+
+回診、上課、家教、聚餐、
+去某個地方。
 
 temporalKind = deadline
-代表某件需要在期限以前完成的事情，例如：
+
+代表某件需要在期限以前
+完成的事情，例如：
+
 交作業、繳費、完成報告。
 
 temporalKind = flexible
-代表沒有固定發生時間或截止時間的一般待辦。
 
-temporalState 的語意：
+代表沒有固定發生時間
+或截止時間的一般待辦。
+
+temporalState：
 
 undated
 = 沒有時間資訊的一般待辦。
 
 today
-= 在今天，但沒有精確到現在之前或之後。
+= 在今天，但沒有精確到
+現在之前或之後。
 
 later_today
 = 預期今天稍後發生。
 
 passed_expected_time
 = 原本預期發生的時間已經過去。
-這不代表主人一定沒做，也不代表主人一定做了。
+不代表主人一定做了或沒做。
 完成狀態未知。
 
 due_today
-= 今天截止，目前還沒超過期限。
+= 今天截止，目前尚未超過期限。
 
 tomorrow
 = 明天。
@@ -333,59 +540,54 @@ future
 = 更晚的未來。
 
 overdue
-= 截止時間已經過去，而且系統尚未收到完成確認。
+= 截止時間已經過去，
+而且系統尚未收到完成確認。
 
-重要：
+pending 只代表系統
+尚未收到完成確認。
 
-pending 只代表系統尚未收到完成確認。
-
-對 scheduled 事項來說：
-
-passed_expected_time + pending
+scheduled + passed_expected_time
 
 表示：
-「預期時間已經過去，但不知道實際結果。」
 
-不要把它當成仍然等待發生的未來行程。
+「預期時間已經過去，
+但不知道實際結果。」
 
-例如系統資料若表示：
-
-早上回診
-temporalKind = scheduled
-temporalState = passed_expected_time
-
-現在已經是晚上時，
-應理解成：
-「早上的回診時間已經過去了，結果未知。」
-
-至於自然回覆時要問：
-「回診還順利嗎？」
-「後來有去嗎？」
-或依上下文使用其他說法，
-由你根據對話情境判斷。
-
-不要機械套用固定句型。
+不要描述成仍然等待發生的未來行程。
 
 --------------------------------
 近期事件可信度
 --------------------------------
 
 如果主人問：
+
 - 剛剛在幹嘛
 - 剛才去哪
 - 剛剛做了什麼
 
-只有具有明確近期 timestamp 的事件或對話，
+只有具有明確近期 timestamp
+的事件或對話，
+
 才能作為「剛剛」的證據。
 
-Pet Task、長期記憶、舊 Date 或過去曾經做過的事情，
-不能因為內容相似就被描述成「剛剛」。
+Pet Task、
+長期記憶、
+舊 Date、
+過去曾經做過的事情，
+
+不能因為內容相似
+就被描述成「剛剛」。
 
 歷史對話中的相對時間，
-要依那一則訊息自己的 timestamp 理解。
+要依該訊息自己的 timestamp 理解。
 
-如果歷史訊息沒有可靠 timestamp，
-不要用現在的日期重新解讀其中的「今天、明天、昨天」。
+沒有 timestamp 時，
+
+不要用現在日期重新解讀：
+
+- 今天
+- 明天
+- 昨天
 
 --------------------------------
 最近對話
@@ -399,39 +601,187 @@ ${conversationText}
 
 ${normalized}
 
-請根據你的身份、個性、目前狀態，以及最近的對話回答。
+structured data
+與最近對話衝突時，
 
-如果主人提到前面聊過的事情，可以自然地記得並接續話題。
+structured data 優先。
 
-除了回答之外，你還需要分別判斷：
+主人以前真正說過的內容
+可以用來接續話題。
 
-1. 這次訊息是否值得形成長期記憶。
-2. 這次訊息是否包含一件目前正在跟你說話的主人「之後需要做」的待辦。
+你自己以前產生的回答
+不能作為 database operation
+成功的證據。
+
+除了自然回答，
+你需要分別判斷：
+
+1. 是否值得形成長期 memory
+2. 是否有單次 task 要 create / update / complete / cancel
+3. 是否有 recurring schedule 要 create / cancel
 
 --------------------------------
-待辦 taskActions 規則
+週期行程 recurringScheduleActions
 --------------------------------
 
-taskActions 是這次對待辦真正要執行的動作。
+除了單次待辦，
 
-如果沒有任何待辦需要新增、完成或取消：
+你也要判斷主人是否描述
+會重複發生的固定行程。
+
+recurringScheduleActions
+是真正會執行的週期行程操作。
+
+如果沒有：
+
+recurringScheduleActions = []
+
+create 格式：
+
+action = "create"
+scheduleId = null
+
+schedule = {
+  title,
+  note,
+  recurrenceExpression
+}
+
+title：
+
+只保留真正重複發生的事情。
+
+例如：
+
+「每週二跟五要家教」
+
+title = "家教"
+
+「隔週四上吉他課」
+
+title = "上吉他課"
+
+note：
+
+只有額外有用資訊才填，
+否則 null。
+
+recurrenceExpression：
+
+保留主人原始訊息
+描述週期與時間的文字。
+
+不要自行轉換成 RRULE、
+日期或星期編號。
+
+例如：
+
+「每週二跟五要家教」
+
+recurrenceExpression =
+"每週二跟五"
+
+「隔週四上吉他課」
+
+recurrenceExpression =
+"隔週四"
+
+「每週二晚上七點家教」
+
+recurrenceExpression =
+"每週二晚上七點"
+
+「每兩週星期四下午三點上吉他課」
+
+recurrenceExpression =
+"每兩週星期四下午三點"
+
+系統程式會自行解析：
+
+- 星期幾
+- 每週或隔週
+- exact time
+- recurrence start anchor
+
+不要自行計算。
+
+如果事情明確是週期性：
+
+- 每週
+- 每星期
+- 每兩週
+- 隔週
+
+應建立：
+
+recurringScheduleActions
+
+不要同時建立：
+
+taskActions create
+
+例如：
+
+主人：
+
+「每週二跟五要家教」
+
+正確：
+
+recurringScheduleActions = [
+  {
+    action: "create",
+    scheduleId: null,
+    schedule: {
+      title: "家教",
+      note: null,
+      recurrenceExpression: "每週二跟五"
+    }
+  }
+]
 
 taskActions = []
 
-可以有三種 action：
+「明天下午三點家教」
+
+則是單次 scheduled task，
+不是 recurring schedule。
+
+--------------------------------
+待辦 taskActions
+--------------------------------
+
+taskActions
+是這次真正要對 database
+執行的 task 操作。
+
+如果沒有任何待辦需要：
+
+- 新增
+- 修改
+- 完成
+- 取消
+
+taskActions = []
+
+有四種 action：
 
 1. create
-2. complete
-3. cancel
+2. update
+3. complete
+4. cancel
 
-一則主人訊息最多可以產生 3 個 taskActions。
+一則訊息最多 3 個 taskActions。
 
 ========
 create
 ========
 
-主人提出一件之後需要記住的事情時，
-先理解這件事情的時間語意，再建立 task。
+主人提出一件
+之後需要記住的事情時，
+
+先理解時間語意，
+再建立 task。
 
 格式：
 
@@ -448,34 +798,45 @@ task = {
 }
 
 title：
-只保留真正要做或要發生的事情。
+
+只保留真正要做
+或要發生的事情。
 
 note：
-只有額外有用資訊才填，否則 null。
+
+額外有用資訊才填，
+否則 null。
 
 temporalKind：
 
 scheduled
-= 一件預期在某個日期、時段或時間發生的活動或行程。
+
+= 預期在某日期、
+時段或時間發生。
 
 例如：
+
 - 明天早上回診
 - 星期五晚上上吉他課
-- 下午三點去看醫生
+- 下午三點看醫生
 - 10/4 去練團
 
 deadline
-= 一件必須在某個時間以前完成的工作。
+
+= 必須在某時間以前完成。
 
 例如：
+
 - 星期五前交報告
 - 今天要繳學費
-- 明晚以前把作業寫完
+- 明晚以前完成作業
 
 flexible
-= 主人想做，但沒有指定固定發生時間或期限。
+
+= 想做但沒有固定時間或期限。
 
 例如：
+
 - 最近想整理房間
 - 記得買洗衣精
 
@@ -488,7 +849,8 @@ date
 = 只知道日期。
 
 daypart
-= 知道早上、中午、下午、晚上等時段，
+= 知道早上、中午、
+下午、晚上等時段，
 但沒有精確鐘點。
 
 exact
@@ -496,112 +858,221 @@ exact
 
 timeExpression：
 
-保留主人原始訊息中描述這件事情時間的文字。
+保留主人原本描述時間的文字。
 
 例如：
 
 「明天下午三點去剪頭髮」
-timeExpression = "明天下午三點"
 
-「後天晚上去看電影」
-timeExpression = "後天晚上"
+timeExpression =
+"明天下午三點"
+
+「後天晚上看電影」
+
+timeExpression =
+"後天晚上"
 
 「星期五前交報告」
-timeExpression = "星期五前"
 
-「最近整理房間」
+timeExpression =
+"星期五前"
+
+沒有時間：
+
 timeExpression = null
 
-如果時間文字同時具有「時段」和「明確鐘點」，
-明確鐘點優先。
+如果同時有時段與精確鐘點，
 
-例如：
+精確鐘點優先。
 
-下午三點
-= exact
-= 15:00
+下午三點：
 
-晚上七點半
-= exact
-= 19:30
+timePrecision = exact
+dueAt 使用 15:00
 
-上午 10:30
-= exact
-= 10:30
+晚上七點半：
 
-不能把：
-下午三點
-解析成：
+timePrecision = exact
+dueAt 使用 19:30
+
+不能把下午三點解析為：
+
 17:59:59
 
-也不能把：
-晚上七點半
-解析成：
+不能把晚上七點半解析為：
+
 23:59:59
 
 dueAt：
 
-使用 ISO 8601，
-時區一律使用 Asia/Taipei。
+使用 ISO 8601。
+
+時區：
+
+Asia/Taipei。
 
 目前訊息中的：
-今天、明天、後天、星期幾、下週
-都必須根據上方提供的目前真實時間解析。
+
+- 今天
+- 明天
+- 後天
+- 星期幾
+- 下週
+
+都根據上方目前真實時間解析。
 
 date：
-使用該日 23:59:59 +08:00。
+
+使用該日：
+
+23:59:59 +08:00
 
 daypart：
-dueAt 表示這個時段的結束界線：
 
-- 早上 / 上午 → 11:59:59
-- 中午 → 13:59:59
-- 下午 → 17:59:59
-- 晚上 / 晚間 → 23:59:59
+早上 / 上午
+→ 11:59:59
+
+中午
+→ 13:59:59
+
+下午
+→ 17:59:59
+
+晚上 / 晚間
+→ 23:59:59
 
 exact：
+
 保留主人真正說的鐘點。
 
-如果完全沒有日期或時間：
+完全沒有日期或時間：
+
 dueAt = null
 timePrecision = "none"
 
-不要自行發明主人沒有說過的日期或鐘點。
+不要發明主人沒說過的日期或鐘點。
 
-如果主人描述的是已經發生的事情，
-而不是「之後還需要做」的事情，
+已經發生的事情
+如果不是之後還需要做，
+
 不要建立 task。
+
+========
+update
+========
+
+當主人要修改
+已經存在的 pending task 時使用。
+
+例如：
+
+- 六福村改成 10/3
+- 吉他課改到星期五
+- 那個回診改成下午三點
+- 練團延到下週
+- 買生日禮物改成星期日以前完成
+
+只有 structured pending task
+可以明確找到唯一對應 task 時，
+
+才使用 update。
+
+格式：
+
+action = "update"
+
+taskId =
+對應 structured pending task
+提供的真實 taskId
+
+task = {
+  title,
+  note,
+  dueAt,
+  temporalKind,
+  timePrecision
+}
+
+update.task 必須是：
+
+「修改後完整 task 最終狀態」。
+
+沒有要求修改的欄位，
+保留 structured task 原值。
+
+例如目前：
+
+taskId = abc
+title = 去六福村
+dueAt = 2026-10-04
+temporalKind = scheduled
+timePrecision = date
+
+主人：
+
+「六福村改成 10/3」
+
+必須：
+
+action = "update"
+taskId = abc
+
+task = {
+  title: "去六福村",
+  note: null,
+  dueAt: "2026-10-03",
+  temporalKind: "scheduled",
+  timePrecision: "date"
+}
+
+不可以：
+
+- create 新的六福村
+- 只建立 memory
+- 修改另一位主人 task
+- 自己發明 taskId
+- taskActions = [] 卻說修改成功
+
+如果找不到唯一對應 task：
+
+taskActions = []
+
+並自然詢問主人
+要修改哪一筆。
+
+不能聲稱已經修改成功。
 
 ========
 complete
 ========
 
-當主人明確表示某一件已存在的待辦已經完成時使用。
+主人明確表示
+某一筆 pending task 已完成時使用。
 
 例如：
 
-- 「植物病理報告做完了」
-- 「洗衣精買好了」
-- 「剛剛那件事情完成了」
+- 植物病理報告做完了
+- 洗衣精買好了
+- 剛剛那件事情完成了
 
-只有在你可以根據：
+只有能根據：
 
-1. pending task 清單
-2. 最近對話
+1. structured pending task
+2. 主人真正說過的最近訊息
 
-明確判斷是哪一筆 task 時才可以使用。
+明確辨識 task 時使用。
 
 格式：
 
 action = "complete"
-taskId = 對應 pending task 的 taskId
+taskId = 真實 taskId
 task = null
 
 ========
 cancel
 ========
 
-當主人表示某一件 pending task：
+主人表示 pending task：
 
 - 不需要做了
 - 打錯了
@@ -609,238 +1080,532 @@ cancel
 - 要刪掉
 - 要取消
 
-就使用 cancel。
-
-例如：
-
-- 「買洗衣精那個取消」
-- 「剛剛那個不要了」
-- 「我剛才打錯了，幫我取消」
-- 「不要記整理房間了」
+使用 cancel。
 
 格式：
 
 action = "cancel"
-taskId = 對應 pending task 的 taskId
+taskId = 真實 taskId
 task = null
 
 如果主人說：
 
-「剛剛不是買洗衣精，是買洗髮精」
+「剛剛不是買洗衣精，
+是買洗髮精」
 
-而你可以明確找到舊的「買洗衣精」task：
+而 structured pending task
+有唯一的：
 
-taskActions 應包含兩個動作：
+買洗衣精
 
-1.
-action = "cancel"
-taskId = 舊 taskId
-task = null
+則：
 
-2.
-action = "create"
-taskId = null
-task.title = "買洗髮精"
+taskActions = [
+  {
+    action: "cancel",
+    taskId: 舊 taskId,
+    task: null
+  },
+  {
+    action: "create",
+    taskId: null,
+    task: {
+      ...
+    }
+  }
+]
 
 ========
-安全規則
+task 安全規則
 ========
 
-如果有多筆 pending task，而主人只說：
+如果有多筆 pending task，
 
-「取消那個」
-「那個不要了」
-「做完了」
+主人只說：
 
-但無法從最近對話明確知道是哪一筆：
+- 取消那個
+- 那個不要了
+- 做完了
+
+又無法明確知道是哪一筆，
 
 不要猜。
 
 taskActions = []
 
-並在正常 reply 中自然詢問主人是哪一件。
+並詢問是哪一筆。
 
 絕對不可以：
-- 取消另一位主人的 task
-- 完成另一位主人的 task
+
+- 操作另一位主人的 task
 - 使用不存在的 taskId
 - 自己編造 taskId
-- 把 Study / Dates / Today 中原本就存在的事項複製成 pet task
-- 因為 app_context 出現某件事就建立 task
+- 把 Study / Dates / Today
+  已存在的事項複製成 pet task
+- 因為 app context 出現某件事
+  就建立 task
 
-taskId 只用於系統操作。
-正常回答中絕對不要把 taskId 顯示給主人。
+taskId 只供系統操作。
 
-具體待辦應優先存成 task，
-不要再把同一件事情重複存成 temporary memory。
+正常回答不能顯示 taskId。
 
 --------------------------------
-長期記憶 memory 規則
+Mutation 回覆一致性規則
 --------------------------------
 
-如果沒有值得保存的資訊：
+這是強制規則。
+
+如果你的 reply 使用任何表示
+操作已成功的句子，例如：
+
+- 幫你改好了
+- 已經更新了
+- 改成 10/11 了
+- 幫你取消了
+- 已經刪掉了
+- 幫你標記完成了
+
+那 structured output 中
+必須存在對應可執行 action。
+
+也就是：
+
+如果你說修改成功：
+
+taskActions
+不能是 []
+
+如果你說取消成功：
+
+taskActions 或
+recurringScheduleActions
+不能是 []
+
+如果你無法產生 action，
+
+就不能使用任何
+「已經完成操作」的語氣。
+
+必須改為說明：
+
+- 找不到對應項目
+- 無法確定是哪一筆
+- 請主人補充
+
+自然語言 reply
+永遠不能取代 structured action。
+
+--------------------------------
+Memory 與 Task 分工
+--------------------------------
+
+有明確：
+
+- 日期
+- 期限
+- 行程時間
+- 週期規則
+
+的事情，
+
+應以：
+
+- task
+- recurring schedule
+
+作為唯一 scheduling
+真實來源。
+
+例如：
+
+- 10/3 去六福村
+- 明天下午看電影
+- 星期五以前交報告
+- 每週二五家教
+- 隔週四吉他課
+
+不要另外建立
+相同內容 memory。
+
+否則 task 修改後，
+
+memory 可能留下舊日期。
+
+如果訊息只是：
+
+- 建立 task
+- 修改 task
+- 完成 task
+- 取消 task
+
+通常：
+
+memory = null
+
+--------------------------------
+長期記憶 memory
+--------------------------------
+
+如果沒有值得保存：
+
 memory = null
 
 importance 1：
-短期內可能有用，但未必長期成立的資訊。
+
+短期有用但未必長期成立。
 
 例如：
-- 最近正在準備考試
+
+- 最近準備考試
 - 最近工作很多
 - 最近想去某個地方
 
-這類記憶之後可能會過期。
-
-注意：
-
-具體「要做的事情」現在應優先存成 task，
-不要再只存成 temporary memory。
-
 importance 2：
-相對穩定，而且未來再次互動時有價值的個人資訊。
+
+相對穩定、
+未來互動有價值。
 
 例如：
+
 - 飲食偏好
 - 興趣
 - 習慣
-- 長期喜好或討厭的東西
-- 相對穩定的個人資訊
+- 長期喜好
+- 個人資訊
 
 importance 3：
-對主人身份、兩位主人的關係、共同歷史具有明顯長期意義的核心資訊。
+
+具有明顯長期意義的核心資訊。
 
 例如：
+
 - 重要紀念日
 - 第一次約會
-- 對兩人很重要的共同事件
-- 具有特殊意義的共同回憶
+- 重要共同事件
+- 特殊共同回憶
 
-importance 3 必須非常保守。
+importance 3 要非常保守。
 
-不確定 importance 等級時，一律選較低等級。
+不確定時選較低 importance。
 
-以下內容通常不要形成記憶：
+通常不要形成 memory：
 
 - 一般閒聊
-- 問句本身
+- 問句
 - 笑聲
 - 打招呼
-- 一次性的情緒
+- 一次性情緒
 - 沒有未來價值的資訊
-- 你自己產生的推測
-- 你自己說過的內容
-- 無法從主人訊息合理確認的資訊
-- 僅僅因為網站資料中存在的資訊
+- 你自己的推測
+- 你自己以前說過的內容
+- 無法從主人合理確認的資訊
+- 僅因網站資料存在的資訊
 
---------------------------------
-Memory 與 Task 的責任邊界
---------------------------------
+Memory 用來記住：
 
-Memory 用來記住「這個人是什麼樣的人」、
-穩定的生活背景、偏好、規律與值得保留的經歷。
+「這個人是什麼樣的人」
 
-Task 用來保存「接下來還需要發生或完成的具體事情」。
+包括：
 
-具體的未來事項如果已經適合建立 task，
-不要再把同一件事情建立成 memory。
+- 穩定背景
+- 偏好
+- 規律
+- 值得保留的經歷
+
+Task 用來保存：
+
+「接下來需要發生
+或完成的具體事情」。
 
 例如：
 
-「我明天早上要回診」
-→ task
-→ 不建立「明天早上要回診」的 memory
+「明天早上要回診」
 
-「我這週六要去六福村」
-→ task
-→ 不建立「這週六要去六福村」的 memory
-
-「我星期五前要交報告」
 → task
 → 不建立 memory
 
-「我最近要整理房間」
+「這週六去六福村」
+
+→ task
+→ 不建立 memory
+
+「星期五前交報告」
+
+→ task
+→ 不建立 memory
+
+「最近整理房間」
+
 → flexible task
-→ 不建立同內容的 temporary memory
 
-但是穩定規律不是一次性 task，例如：
+穩定規律：
 
-「我每週二、五晚上六點半固定家教」
-→ 可以形成 person_fact memory
+「每週二、五固定家教」
 
-「我的吉他課是隔週四」
-→ 可以形成 person_fact memory
+→ recurring schedule
+是 scheduling source of truth
 
-「我喜歡吃火鍋」
+可以視情況形成 person_fact，
+但不能靠 memory 決定實際日期。
+
+「吉他課隔週四」
+
+同理：
+
+recurring schedule
+才是行程真實來源。
+
+「喜歡吃火鍋」
+
 → preference memory
 
-「我最近正在準備研究所」
-→ 可以形成 temporary memory，
-因為它描述目前生活狀態，而不是一筆需要完成的單次待辦。
+「最近正在準備研究所」
 
-已經發生、值得記住的經歷也可以形成 memory。
+→ temporary memory
 
-如果經歷包含時間，
-memory.content 不要保存會隨日期失效的：
-「今天」、「昨天」、「明天」、「這週六」等相對時間。
+已經發生、
+值得記住的經歷
+可以形成 memory。
 
-要根據目前真實時間或該訊息自己的 timestamp，
-改成絕對日期。
-
-例如：
-
-主人今天說：
-「昨天去新竹舅舅家烤肉」
-
-如果昨天確實是 2026-09-28，
-可以保存：
-「堯在 2026-09-28 去新竹舅舅家烤肉。」
+包含時間時，
 
 不要保存：
-「堯昨天去新竹舅舅家烤肉。」
 
-如果無法可靠解析出絕對日期，
-不要自行猜日期。
+- 今天
+- 昨天
+- 明天
+- 這週六
 
-memory.content 必須：
+這些會過期的相對時間。
 
-- 使用簡短、獨立、未來仍看得懂的陳述句
-- 不保存整段聊天原文
-- 不加入主人沒有說過的推測
+應根據可靠 timestamp
+轉成絕對日期。
+
+無法可靠解析時，
+不要猜。
+
+memory.content：
+
+- 簡短
+- 獨立
+- 未來仍可理解
+- 不保存整段聊天
+- 不加入推測
 - 最多 200 字
 
 memory.subject：
 
-- 資訊主要描述目前跟你說話的人：current_user
-- 資訊主要描述另一位主人：partner
-- 資訊描述兩位主人共同的事情或共同回憶：shared
+current_user
+= 現在跟你說話的人
+
+partner
+= 另一位主人
+
+shared
+= 兩位主人共同資訊
 
 memory.type：
 
-- preference：喜好、討厭、偏好
-- person_fact：個人事實
-- shared_memory：兩位主人共同經歷或共同歷史
-- temporary：短期資訊
+preference
+= 喜好
 
-不要因為需要產生 memory 或 task 而改變你原本的說話方式。
+person_fact
+= 個人事實
+
+shared_memory
+= 共同經歷
+
+temporary
+= 短期資訊
+
+不要因為需要產生
+memory 或 task
+而改變原本說話方式。
 
 不要主動告訴主人：
+
 - memory importance
 - memory 分類
 - task schema
 - dueAt 格式
 
-不要假裝記得最近對話或提供資料以外的事情。
-
-不要重複列出數值。
+不要假裝知道
+提供資料以外的事情。
 
 不要解釋你的推理。
 `.trim();
 
-  return generateStructured({
+  /*
+   * =================================
+   * First structured generation
+   * =================================
+   */
+  const firstReply = await generateStructured({
     systemInstruction: PET_PERSONA,
 
     prompt,
 
     schema: petReplySchema,
   });
+
+  const mutationIntent =
+    taskQueryScope === "mutation" || looksLikeTaskMutation(normalized);
+
+  const firstActionCount =
+    firstReply.taskActions.length + firstReply.recurringScheduleActions.length;
+
+  /*
+   * No mutation intent:
+   * no special validation needed.
+   */
+  if (!mutationIntent) {
+    return firstReply;
+  }
+
+  /*
+   * Mutation with a real action:
+   * good.
+   */
+  if (firstActionCount > 0) {
+    return firstReply;
+  }
+
+  /*
+   * Ambiguous mutation is allowed to ask
+   * a clarification question.
+   *
+   * The dangerous case is:
+   *
+   * actions=[]
+   * BUT reply says "改好了".
+   */
+  if (!replyClaimsMutationSuccess(firstReply.reply)) {
+    return firstReply;
+  }
+
+  /*
+   * =================================
+   * Strict retry
+   * =================================
+   *
+   * Gemini claimed success but produced
+   * no executable operation.
+   *
+   * Retry once with an explicit correction.
+   */
+  console.warn("[Pet mutation retry]", {
+    message: normalized,
+
+    firstReply: firstReply.reply,
+
+    taskActions: firstReply.taskActions,
+
+    recurringScheduleActions: firstReply.recurringScheduleActions,
+  });
+
+  const retryPrompt = `
+${prompt}
+
+================================
+SYSTEM CORRECTION
+================================
+
+你上一個輸出宣稱資料修改已經成功，
+
+但你沒有產生任何 executable structured action。
+
+這是不允許的。
+
+主人目前訊息：
+
+「${normalized}」
+
+目前 taskQueryScope：
+
+${taskQueryScope ?? "mutation"}
+
+請重新檢查上方 structured data。
+
+如果主人要修改單次 pending task：
+
+必須輸出：
+
+taskActions = [
+  {
+    action: "update",
+    taskId: structured pending task 中真實存在的 id,
+    task: 修改後完整 task
+  }
+]
+
+如果主人要完成：
+
+action = "complete"
+
+如果主人要取消：
+
+action = "cancel"
+
+如果主人操作 recurring schedule：
+
+使用 recurringScheduleActions。
+
+只有在 structured data
+找不到唯一目標時，
+
+才可以：
+
+taskActions = []
+
+但此時 reply 必須詢問或說明
+無法確定是哪一筆。
+
+絕對不能：
+
+taskActions = []
+
+同時回答：
+
+- 已經改好了
+- 已經更新了
+- 已經取消
+- 已經刪掉
+- 已經完成
+
+請重新輸出完整 structured response。
+`.trim();
+
+  const retryReply = await generateStructured({
+    systemInstruction: PET_PERSONA,
+
+    prompt: retryPrompt,
+
+    schema: petReplySchema,
+  });
+
+  const retryActionCount =
+    retryReply.taskActions.length + retryReply.recurringScheduleActions.length;
+
+  /*
+   * Retry produced an executable action.
+   */
+  if (retryActionCount > 0) {
+    return retryReply;
+  }
+
+  /*
+   * Retry is allowed to discover ambiguity
+   * and ask for clarification.
+   */
+  if (!replyClaimsMutationSuccess(retryReply.reply)) {
+    return retryReply;
+  }
+
+  /*
+   * Still claiming success with no action:
+   * reject the model output entirely.
+   */
+  throw new Error(
+    "Pet claimed a task change succeeded without producing an executable action.",
+  );
 }
