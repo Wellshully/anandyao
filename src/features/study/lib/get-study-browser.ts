@@ -2,6 +2,8 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 
+import { isStudyAssignmentVisible } from "@/features/study/lib/study-assignment-visibility";
+
 import type {
   StudyAnnouncementItem,
   StudyAssignmentItem,
@@ -97,6 +99,16 @@ export async function getStudyBrowser(): Promise<StudyBrowserData> {
     .sort((a, b) => a.name.localeCompare(b.name, "zh-TW"));
 
   const assignments: StudyAssignmentItem[] = (assignmentsResult.data ?? [])
+    .filter(
+      (assignment) =>
+        assignment.due_at !== null &&
+        (
+          assignment.submitted ||
+          isStudyAssignmentVisible(
+            assignment.due_at,
+          )
+        ),
+    )
     .map((assignment) => ({
       id: assignment.id,
 

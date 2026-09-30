@@ -4,6 +4,7 @@ import { getDates } from "@/features/dates/lib/get-dates";
 import { getLatestPetDailyReport } from "@/features/pet/report/get-latest-report";
 import { getCurrentProfile } from "@/features/profile/lib/get-current-profile";
 import { getTodayOverview } from "@/features/today/lib/get-today-overview";
+import { getStudyAssignmentCutoffIso } from "@/features/study/lib/study-assignment-visibility";
 
 import type { TodayItem } from "@/features/today/types";
 
@@ -207,6 +208,12 @@ export async function getHomeDashboard(): Promise<HomeDashboard> {
       .eq("user_id", user.id)
       .eq("submitted", false)
       .not("due_at", "is", null)
+      .gte(
+        "due_at",
+        getStudyAssignmentCutoffIso(
+          new Date(now),
+        ),
+      )
       .lt(
         "due_at",
         new Date(now).toISOString(),

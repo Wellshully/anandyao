@@ -1,4 +1,5 @@
 import "server-only";
+import { getStudyAssignmentCutoffIso } from "@/features/study/lib/study-assignment-visibility";
 
 import { siteConfig } from "@/config/site";
 
@@ -288,6 +289,12 @@ export async function getPetDailyReportContext({
       .eq("user_id", userId)
       .eq("submitted", false)
       .not("due_at", "is", null)
+      .gte(
+        "due_at",
+        getStudyAssignmentCutoffIso(
+          now,
+        ),
+      )
       .order("due_at", {
         ascending: true,
       })

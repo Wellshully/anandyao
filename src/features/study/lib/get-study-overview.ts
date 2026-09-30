@@ -2,6 +2,8 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 
+import { getStudyAssignmentCutoffIso } from "@/features/study/lib/study-assignment-visibility";
+
 export type StudyOverview = {
   lastSyncedAt: string | null;
 
@@ -86,7 +88,11 @@ export async function getStudyOverview(): Promise<StudyOverview> {
         })
         .eq("user_id", userId)
         .eq("submitted", false)
-        .not("due_at", "is", null),
+        .not("due_at", "is", null)
+        .gte(
+          "due_at",
+          getStudyAssignmentCutoffIso(),
+        ),
 
       supabase
         .from("study_announcements")
