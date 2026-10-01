@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import {
   getCalendarEvents,
 } from "@/features/calendar/lib/get-calendar-events";
@@ -210,26 +212,84 @@ export default async function CalendarPage({
   return (
     <main
       className="
-        space-y-3
+        space-y-5
       "
     >
       {googleMessage ? (
         <div
           className="
-            rounded-xl
+            rounded-2xl
             border
             border-[var(--border)]
             bg-[var(--surface)]
-            px-3
-            py-2
-            text-xs
+            px-4
+            py-3
+            text-sm
           "
         >
           {googleMessage}
         </div>
       ) : null}
 
+      <section
+        className="
+          flex
+          flex-wrap
+          items-center
+          justify-between
+          gap-3
+          rounded-2xl
+          border
+          border-[var(--border)]
+          bg-[var(--surface)]
+          px-4
+          py-3
+        "
+      >
+        <div>
+          <p
+            className="
+              text-sm
+              font-medium
+            "
+          >
+            Google Calendar
+          </p>
 
+          <p
+            className="
+              mt-1
+              text-xs
+              text-[var(--muted)]
+            "
+          >
+            {googleConnection.connected
+              ? googleConnection.calendarSummary
+                ? `已連結：${googleConnection.calendarSummary}`
+                : "已連結"
+              : "尚未連結"}
+          </p>
+        </div>
+
+        <Link
+          href="/api/google-calendar/connect"
+          className="
+            rounded-xl
+            border
+            border-[var(--border)]
+            px-4
+            py-2
+            text-sm
+            font-medium
+            transition
+            hover:bg-[var(--background)]
+          "
+        >
+          {googleConnection.connected
+            ? "重新連結"
+            : "連結 Google Calendar"}
+        </Link>
+      </section>
 
       <CalendarMonthView
         month={
@@ -246,12 +306,6 @@ export default async function CalendarPage({
         }
         selectedDate={
           selectedDate
-        }
-        googleConnected={
-          googleConnection.connected
-        }
-        googleCalendarSummary={
-          googleConnection.calendarSummary
         }
       />
     </main>
