@@ -701,17 +701,27 @@ export function CalendarMonthView({
 
               <div
                 className="
-                  absolute
-                  left-0
-                  z-30
-                  mt-2
-                  w-64
+                  fixed
+                  left-1/2
+                  top-36
+                  z-50
+                  w-[calc(100vw-2rem)]
+                  max-w-72
+                  -translate-x-1/2
                   rounded-xl
                   border
                   border-[var(--border)]
                   bg-[var(--surface)]
                   p-3
                   shadow-[0_12px_35px_rgba(38,35,31,0.14)]
+
+                  sm:absolute
+                  sm:left-0
+                  sm:top-full
+                  sm:mt-2
+                  sm:w-64
+                  sm:max-w-none
+                  sm:translate-x-0
                 "
               >
                 <div
