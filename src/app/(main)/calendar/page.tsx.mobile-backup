@@ -159,7 +159,7 @@ export default async function CalendarPage({
             border
             border-[var(--border)]
             bg-[var(--surface)]
-            px-1 sm:px-4
+            px-4
             py-3
             text-sm
           "
