@@ -1,0 +1,933 @@
+===== CalendarMonthView.tsx =====
+import Link from "next/link";
+
+import type {
+  CalendarEvent,
+} from "@/features/calendar/types";
+
+import {
+  getAdjacentMonth,
+  getCalendarMonthGrid,
+  getDateKeysBetween,
+} from "@/features/calendar/lib/calendar-month";
+
+type CalendarMonthViewProps = {
+  month: string;
+
+  today: string;
+
+  events:
+    CalendarEvent[];
+};
+
+const WEEKDAYS = [
+  "日",
+  "一",
+  "二",
+  "三",
+  "四",
+  "五",
+  "六",
+];
+
+function getTaipeiDateFromIso(
+  value: string,
+) {
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-US",
+      {
+        timeZone:
+          "Asia/Taipei",
+
+        year:
+          "numeric",
+
+        month:
+          "2-digit",
+
+        day:
+          "2-digit",
+      },
+    ).formatToParts(
+      new Date(value),
+    );
+
+  const year =
+    parts.find(
+      (part) =>
+        part.type === "year",
+    )?.value;
+
+  const month =
+    parts.find(
+      (part) =>
+        part.type === "month",
+    )?.value;
+
+  const day =
+    parts.find(
+      (part) =>
+        part.type === "day",
+    )?.value;
+
+  if (
+    !year ||
+    !month ||
+    !day
+  ) {
+    return null;
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+function getEventTimeLabel(
+  event: CalendarEvent,
+) {
+  if (
+    event.allDay ||
+    !event.startAt
+  ) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat(
+    "zh-TW",
+    {
+      timeZone:
+        "Asia/Taipei",
+
+      hour:
+        "2-digit",
+
+      minute:
+        "2-digit",
+
+      hour12:
+        false,
+    },
+  ).format(
+    new Date(
+      event.startAt,
+    ),
+  );
+}
+
+function groupEventsByDate(
+  events: CalendarEvent[],
+) {
+  const result =
+    new Map<
+      string,
+      CalendarEvent[]
+    >();
+
+  const push = (
+    date: string,
+    event: CalendarEvent,
+  ) => {
+    const current =
+      result.get(date) ??
+      [];
+
+    current.push(event);
+
+    result.set(
+      date,
+      current,
+    );
+  };
+
+  for (
+    const event of events
+  ) {
+    /*
+     * all-day / multi-day event.
+     */
+    if (
+      event.startDate
+    ) {
+      const endDate =
+        event.endDate ??
+        event.startDate;
+
+      for (
+        const date of
+          getDateKeysBetween(
+            event.startDate,
+            endDate,
+          )
+      ) {
+        push(
+          date,
+          event,
+        );
+      }
+
+      continue;
+    }
+
+    /*
+     * Timed event.
+     */
+    if (
+      event.startAt
+    ) {
+      const date =
+        getTaipeiDateFromIso(
+          event.startAt,
+        );
+
+      if (date) {
+        push(
+          date,
+          event,
+        );
+      }
+    }
+  }
+
+  for (
+    const [
+      date,
+      items,
+    ] of result
+  ) {
+    result.set(
+      date,
+      items.sort(
+        (a, b) => {
+          if (
+            a.allDay &&
+            !b.allDay
+          ) {
+            return -1;
+          }
+
+          if (
+            !a.allDay &&
+            b.allDay
+          ) {
+            return 1;
+          }
+
+          if (
+            a.startAt &&
+            b.startAt
+          ) {
+            return (
+              new Date(
+                a.startAt,
+              ).getTime() -
+              new Date(
+                b.startAt,
+              ).getTime()
+            );
+          }
+
+          return a.title.localeCompare(
+            b.title,
+            "zh-TW",
+          );
+        },
+      ),
+    );
+  }
+
+  return result;
+}
+
+function getMonthTitle(
+  month: string,
+) {
+  const [
+    year,
+    monthNumber,
+  ] = month
+    .split("-")
+    .map(Number);
+
+  return `${year} 年 ${monthNumber} 月`;
+}
+
+export function CalendarMonthView({
+  month,
+  today,
+  events,
+}: CalendarMonthViewProps) {
+  const grid =
+    getCalendarMonthGrid(
+      month,
+    );
+
+  const eventsByDate =
+    groupEventsByDate(
+      events,
+    );
+
+  const previousMonth =
+    getAdjacentMonth(
+      month,
+      -1,
+    );
+
+  const nextMonth =
+    getAdjacentMonth(
+      month,
+      1,
+    );
+
+  const currentMonth =
+    today.slice(
+      0,
+      7,
+    );
+
+  return (
+    <section>
+      <div
+        className="
+          mb-6
+          flex
+          flex-wrap
+          items-center
+          justify-between
+          gap-4
+        "
+      >
+        <div>
+          <p
+            className="
+              text-sm
+              text-[var(--muted)]
+            "
+          >
+            Calendar
+          </p>
+
+          <h1
+            className="
+              mt-1
+              text-3xl
+              font-semibold
+            "
+          >
+            {getMonthTitle(
+              month,
+            )}
+          </h1>
+        </div>
+
+        <nav
+          className="
+            flex
+            items-center
+            gap-2
+          "
+        >
+          <Link
+            href={
+              `/calendar?month=${previousMonth}`
+            }
+            className="
+              rounded-xl
+              border
+              border-[var(--border)]
+              px-3
+              py-2
+              text-sm
+              transition
+              hover:bg-[var(--surface)]
+            "
+          >
+            ←
+          </Link>
+
+          <Link
+            href={
+              `/calendar?month=${currentMonth}`
+            }
+            className="
+              rounded-xl
+              border
+              border-[var(--border)]
+              px-4
+              py-2
+              text-sm
+              transition
+              hover:bg-[var(--surface)]
+            "
+          >
+            今天
+          </Link>
+
+          <Link
+            href={
+              `/calendar?month=${nextMonth}`
+            }
+            className="
+              rounded-xl
+              border
+              border-[var(--border)]
+              px-3
+              py-2
+              text-sm
+              transition
+              hover:bg-[var(--surface)]
+            "
+          >
+            →
+          </Link>
+        </nav>
+      </div>
+
+      <div
+        className="
+          overflow-hidden
+          rounded-2xl
+          border
+          border-[var(--border)]
+        "
+      >
+        <div
+          className="
+            grid w-full grid-cols-7
+            border-b
+            border-[var(--border)]
+            bg-[var(--surface)]
+          "
+        >
+          {WEEKDAYS.map(
+            (weekday) => (
+              <div
+                key={
+                  weekday
+                }
+                className="
+                  px-2
+                  py-3
+                  text-center
+                  text-[10px] sm:text-xs
+                  font-medium
+                  text-[var(--muted)]
+                "
+              >
+                {weekday}
+              </div>
+            ),
+          )}
+        </div>
+
+        <div
+          className="
+            grid w-full grid-cols-7
+          "
+        >
+          {grid.days.map(
+            (
+              day,
+              index,
+            ) => {
+              const dayEvents =
+                eventsByDate.get(
+                  day.date,
+                ) ?? [];
+
+              const isToday =
+                day.date ===
+                today;
+
+              return (
+                <div
+                  key={
+                    day.date
+                  }
+                  className={`
+                    min-h-32
+                    border-[var(--border)]
+                    p-2
+                    sm:min-h-40
+                    sm:p-3
+
+                    ${
+                      index %
+                        7 !==
+                      6
+                        ? "border-r"
+                        : ""
+                    }
+
+                    ${
+                      index <
+                      35
+                        ? "border-b"
+                        : ""
+                    }
+
+                    ${
+                      day.inCurrentMonth
+                        ? ""
+                        : "opacity-40"
+                    }
+                  `}
+                >
+                  <div
+                    className="
+                      mb-2
+                      flex
+                      justify-end
+                    "
+                  >
+                    <span
+                      className={`
+                        flex
+                        h-7
+                        w-7
+                        items-center
+                        justify-center
+                        rounded-full
+                        text-sm
+
+                        ${
+                          isToday
+                            ? "bg-[var(--foreground)] text-[var(--background)]"
+                            : ""
+                        }
+                      `}
+                    >
+                      {
+                        day.day
+                      }
+                    </span>
+                  </div>
+
+                  <div
+                    className="
+                      space-y-1
+                    "
+                  >
+                    {dayEvents
+                      .slice(
+                        0,
+                        4,
+                      )
+                      .map(
+                        (
+                          event,
+                        ) => {
+                          const time =
+                            getEventTimeLabel(
+                              event,
+                            );
+
+                          return (
+                            <div
+                              key={
+                                event.id
+                              }
+                              className="
+                                overflow-hidden
+                                rounded-lg
+                                bg-[var(--surface)]
+                                px-2
+                                py-1.5
+                                text-[10px] sm:text-xs
+                              "
+                            >
+                              {time ? (
+                                <span
+                                  className="
+                                    mr-1
+                                    text-[var(--muted)]
+                                  "
+                                >
+                                  {
+                                    time
+                                  }
+                                </span>
+                              ) : null}
+
+                              <span
+                                className="
+                                  font-medium
+                                "
+                              >
+                                {
+                                  event.title
+                                }
+                              </span>
+                            </div>
+                          );
+                        },
+                      )}
+
+                    {dayEvents.length >
+                    4 ? (
+                      <p
+                        className="
+                          px-1
+                          text-[10px] sm:text-xs
+                          text-[var(--muted)]
+                        "
+                      >
+                        +
+                        {dayEvents.length -
+                          4}{" "}
+                        件
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            },
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+===== calendar/page.tsx =====
+import Link from "next/link";
+
+import {
+  getCalendarEvents,
+} from "@/features/calendar/lib/get-calendar-events";
+
+import {
+  getCalendarMonthGrid,
+  normalizeCalendarMonth,
+} from "@/features/calendar/lib/calendar-month";
+
+import {
+  CalendarMonthView,
+} from "@/features/calendar/components/CalendarMonthView";
+
+import {
+  getGoogleCalendarConnection,
+} from "@/features/calendar/google/get-google-calendar-connection";
+
+export const dynamic =
+  "force-dynamic";
+
+type CalendarPageProps = {
+  searchParams:
+    Promise<{
+      month?: string;
+
+      google?: string;
+    }>;
+};
+
+function getTodayKey() {
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-US",
+      {
+        timeZone:
+          "Asia/Taipei",
+
+        year:
+          "numeric",
+
+        month:
+          "2-digit",
+
+        day:
+          "2-digit",
+      },
+    ).formatToParts(
+      new Date(),
+    );
+
+  const year =
+    parts.find(
+      (part) =>
+        part.type === "year",
+    )?.value;
+
+  const month =
+    parts.find(
+      (part) =>
+        part.type === "month",
+    )?.value;
+
+  const day =
+    parts.find(
+      (part) =>
+        part.type === "day",
+    )?.value;
+
+  if (
+    !year ||
+    !month ||
+    !day
+  ) {
+    throw new Error(
+      "Failed to resolve today.",
+    );
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+function getGoogleMessage(
+  status:
+    string | undefined,
+) {
+  switch (status) {
+    case "connected":
+      return "Google Calendar 已成功連結。";
+
+    case "denied":
+      return "Google Calendar 授權已取消。";
+
+    case "invalid_state":
+      return "Google Calendar 授權驗證失敗，請重新連結。";
+
+    case "token_error":
+      return "無法取得 Google Calendar 授權，請重新連結。";
+
+    case "calendar_error":
+      return "無法讀取 Google Calendar。";
+
+    case "refresh_token_missing":
+      return "Google 沒有提供長期授權，請重新連結。";
+
+    default:
+      return null;
+  }
+}
+
+export default async function CalendarPage({
+  searchParams,
+}: CalendarPageProps) {
+  const params =
+    await searchParams;
+
+  const month =
+    normalizeCalendarMonth(
+      params.month,
+    );
+
+  const grid =
+    getCalendarMonthGrid(
+      month,
+    );
+
+  const [
+    events,
+    googleConnection,
+  ] =
+    await Promise.all([
+      getCalendarEvents({
+        startDate:
+          grid.startDate,
+
+        endDate:
+          grid.endDate,
+      }),
+
+      getGoogleCalendarConnection(),
+    ]);
+
+  const googleMessage =
+    getGoogleMessage(
+      params.google,
+    );
+
+  return (
+    <main
+      className="
+        space-y-5
+      "
+    >
+      {googleMessage ? (
+        <div
+          className="
+            rounded-2xl
+            border
+            border-[var(--border)]
+            bg-[var(--surface)]
+            px-1 sm:px-4
+            py-3
+            text-sm
+          "
+        >
+          {googleMessage}
+        </div>
+      ) : null}
+
+      <section
+        className="
+          flex
+          flex-wrap
+          items-center
+          justify-between
+          gap-3
+          rounded-2xl
+          border
+          border-[var(--border)]
+          bg-[var(--surface)]
+          px-4
+          py-3
+        "
+      >
+        <div>
+          <p
+            className="
+              text-sm
+              font-medium
+            "
+          >
+            Google Calendar
+          </p>
+
+          <p
+            className="
+              mt-1
+              text-xs
+              text-[var(--muted)]
+            "
+          >
+            {googleConnection.connected
+              ? googleConnection.calendarSummary
+                ? `已連結：${googleConnection.calendarSummary}`
+                : "已連結"
+              : "尚未連結"}
+          </p>
+        </div>
+
+        <Link
+          href="/api/google-calendar/connect"
+          className="
+            rounded-xl
+            border
+            border-[var(--border)]
+            px-4
+            py-2
+            text-sm
+            font-medium
+            transition
+            hover:bg-[var(--background)]
+          "
+        >
+          {googleConnection.connected
+            ? "重新連結"
+            : "連結 Google Calendar"}
+        </Link>
+      </section>
+
+      <CalendarMonthView
+        month={
+          month
+        }
+        today={
+          getTodayKey()
+        }
+        events={
+          events
+        }
+      />
+    </main>
+  );
+}
+
+===== calendar/types.ts =====
+export type CalendarEventSource =
+  | "google"
+  | "study"
+  | "date"
+  | "pet_task"
+  | "pet_recurring_schedule";
+
+export type CalendarEventKind =
+  | "event"
+  | "deadline"
+  | "task";
+
+export type CalendarEvent = {
+  /*
+   * Globally unique inside the Calendar UI.
+   *
+   * Examples:
+   * study:<uuid>
+   * pet_task:<uuid>
+   * date:<uuid>
+   * google:<calendarId>:<eventId>
+   */
+  id: string;
+
+  source: CalendarEventSource;
+  sourceId: string;
+
+  title: string;
+
+  /*
+   * ISO timestamp for timed events.
+   *
+   * For all-day events, startDate / endDate
+   * are used instead.
+   */
+  startAt: string | null;
+  endAt: string | null;
+
+  startDate: string | null;
+  endDate: string | null;
+
+  allDay: boolean;
+
+  kind: CalendarEventKind;
+
+  /*
+   * Completed / submitted state where
+   * the source supports it.
+   */
+  completed: boolean;
+
+  /*
+   * Whether the original source itself
+   * may be edited from Calendar.
+   *
+   * Calendar notes are handled separately.
+   */
+  sourceEditable: boolean;
+
+  href: string | null;
+};
+
+export type CalendarEventDetail = CalendarEvent & {
+  sourceLabel: string;
+
+  sourceNote: string | null;
+  calendarNote: string | null;
+
+  metadata: {
+    courseName?: string;
+    temporalKind?: string;
+    timePrecision?: string;
+    googleCalendarName?: string;
+  };
+};
+
+===== Container.tsx =====
+import type { ReactNode } from "react";
+
+type ContainerProps = {
+  children: ReactNode;
+  className?: string;
+};
+
+export default function Container({
+  children,
+  className = "",
+}: ContainerProps) {
+  return (
+    <div
+      className={`mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 ${className}`}
+    >
+      {children}
+    </div>
+  );
+}

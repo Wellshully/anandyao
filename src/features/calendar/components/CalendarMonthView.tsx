@@ -12,11 +12,10 @@ import {
 
 type CalendarMonthViewProps = {
   month: string;
-
   today: string;
-
-  events:
-    CalendarEvent[];
+  events: CalendarEvent[];
+  view: "month" | "day";
+  selectedDate: string;
 };
 
 const WEEKDAYS = [
@@ -29,6 +28,17 @@ const WEEKDAYS = [
   "六",
 ];
 
+const SOURCE_LABELS: Record<
+  CalendarEvent["source"],
+  string
+> = {
+  google: "Google Calendar",
+  study: "Study",
+  date: "Date",
+  pet_task: "Pet",
+  pet_recurring_schedule: "Pet 固定行程",
+};
+
 function getTaipeiDateFromIso(
   value: string,
 ) {
@@ -36,17 +46,10 @@ function getTaipeiDateFromIso(
     new Intl.DateTimeFormat(
       "en-US",
       {
-        timeZone:
-          "Asia/Taipei",
-
-        year:
-          "numeric",
-
-        month:
-          "2-digit",
-
-        day:
-          "2-digit",
+        timeZone: "Asia/Taipei",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
       },
     ).formatToParts(
       new Date(value),
@@ -94,17 +97,10 @@ function getEventTimeLabel(
   return new Intl.DateTimeFormat(
     "zh-TW",
     {
-      timeZone:
-        "Asia/Taipei",
-
-      hour:
-        "2-digit",
-
-      minute:
-        "2-digit",
-
-      hour12:
-        false,
+      timeZone: "Asia/Taipei",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
     },
   ).format(
     new Date(
@@ -130,7 +126,9 @@ function groupEventsByDate(
       result.get(date) ??
       [];
 
-    current.push(event);
+    current.push(
+      event,
+    );
 
     result.set(
       date,
@@ -141,9 +139,6 @@ function groupEventsByDate(
   for (
     const event of events
   ) {
-    /*
-     * all-day / multi-day event.
-     */
     if (
       event.startDate
     ) {
@@ -167,9 +162,6 @@ function groupEventsByDate(
       continue;
     }
 
-    /*
-     * Timed event.
-     */
     if (
       event.startAt
     ) {
@@ -243,17 +235,281 @@ function getMonthTitle(
   const [
     year,
     monthNumber,
-  ] = month
-    .split("-")
-    .map(Number);
+  ] =
+    month
+      .split("-")
+      .map(Number);
 
   return `${year} 年 ${monthNumber} 月`;
+}
+
+function getDateTitle(
+  date: string,
+) {
+  return new Intl.DateTimeFormat(
+    "zh-TW",
+    {
+      timeZone: "Asia/Taipei",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "long",
+    },
+  ).format(
+    new Date(
+      `${date}T12:00:00+08:00`,
+    ),
+  );
+}
+
+function getAdjacentDate(
+  date: string,
+  amount: number,
+) {
+  const [
+    year,
+    month,
+    day,
+  ] =
+    date
+      .split("-")
+      .map(Number);
+
+  const result =
+    new Date(
+      Date.UTC(
+        year,
+        month - 1,
+        day + amount,
+      ),
+    );
+
+  return result
+    .toISOString()
+    .slice(
+      0,
+      10,
+    );
+}
+
+function getDayHref(
+  date: string,
+) {
+  return `/calendar?view=day&date=${date}&month=${date.slice(0, 7)}`;
+}
+
+function MonthEvent({
+  event,
+}: {
+  event: CalendarEvent;
+}) {
+  const time =
+    getEventTimeLabel(
+      event,
+    );
+
+  const content = (
+    <div
+      title={
+        event.title
+      }
+      className="
+        min-w-0
+        max-w-full
+        overflow-hidden
+        rounded-md
+        bg-[var(--surface)]
+        px-1
+        py-[3px]
+        text-[8px]
+        leading-3
+
+        sm:rounded-lg
+        sm:px-2
+        sm:py-1.5
+        sm:text-xs
+        sm:leading-4
+      "
+    >
+      <div
+        className="
+          flex
+          min-w-0
+          items-center
+        "
+      >
+        {time ? (
+          <span
+            className="
+              mr-1
+              hidden
+              shrink-0
+              text-[var(--muted)]
+
+              sm:inline
+            "
+          >
+            {time}
+          </span>
+        ) : null}
+
+        <span
+          className="
+            block
+            min-w-0
+            flex-1
+            overflow-hidden
+            text-ellipsis
+            whitespace-nowrap
+            font-medium
+          "
+        >
+          {event.title}
+        </span>
+      </div>
+    </div>
+  );
+
+  if (
+    event.href
+  ) {
+    return (
+      <Link
+        href={
+          event.href
+        }
+        className="
+          block
+          min-w-0
+          max-w-full
+        "
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return content;
+}
+
+function DayEvent({
+  event,
+}: {
+  event: CalendarEvent;
+}) {
+  const time =
+    event.allDay
+      ? "全天"
+      : getEventTimeLabel(
+          event,
+        ) ??
+        "未指定";
+
+  const content = (
+    <div
+      className="
+        flex
+        gap-3
+        rounded-xl
+        border
+        border-[var(--border)]
+        bg-[var(--surface)]
+        px-4
+        py-3
+        transition
+
+        hover:border-[var(--foreground)]
+      "
+    >
+      <div
+        className="
+          w-14
+          shrink-0
+          pt-0.5
+          text-xs
+          font-medium
+          tabular-nums
+          text-[var(--muted)]
+        "
+      >
+        {time}
+      </div>
+
+      <div
+        className="
+          min-w-0
+          flex-1
+        "
+      >
+        <p
+          className={`
+            text-sm
+            font-medium
+            leading-5
+
+            ${
+              event.completed
+                ? "line-through opacity-50"
+                : ""
+            }
+          `}
+        >
+          {event.title}
+        </p>
+
+        <p
+          className="
+            mt-1
+            text-[10px]
+            text-[var(--muted)]
+          "
+        >
+          {
+            SOURCE_LABELS[
+              event.source
+            ]
+          }
+        </p>
+      </div>
+
+      {event.href ? (
+        <span
+          className="
+            shrink-0
+            text-sm
+            text-[var(--muted)]
+          "
+        >
+          →
+        </span>
+      ) : null}
+    </div>
+  );
+
+  if (
+    event.href
+  ) {
+    return (
+      <Link
+        href={
+          event.href
+        }
+        className="block"
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return content;
 }
 
 export function CalendarMonthView({
   month,
   today,
   events,
+  view,
+  selectedDate,
 }: CalendarMonthViewProps) {
   const grid =
     getCalendarMonthGrid(
@@ -283,23 +539,54 @@ export function CalendarMonthView({
       7,
     );
 
+  const previousDay =
+    getAdjacentDate(
+      selectedDate,
+      -1,
+    );
+
+  const nextDay =
+    getAdjacentDate(
+      selectedDate,
+      1,
+    );
+
+  const selectedEvents =
+    eventsByDate.get(
+      selectedDate,
+    ) ?? [];
+
   return (
-    <section>
+    <section
+      className="
+        -mx-4
+        w-[calc(100%+2rem)]
+
+        sm:mx-0
+        sm:w-full
+      "
+    >
       <div
         className="
-          mb-6
+          mb-4
           flex
           flex-wrap
-          items-center
+          items-end
           justify-between
-          gap-4
+          gap-3
+          px-4
+
+          sm:mb-6
+          sm:px-0
         "
       >
         <div>
           <p
             className="
-              text-sm
+              text-xs
               text-[var(--muted)]
+
+              sm:text-sm
             "
           >
             Calendar
@@ -308,281 +595,478 @@ export function CalendarMonthView({
           <h1
             className="
               mt-1
-              text-3xl
+              text-2xl
               font-semibold
+
+              sm:text-3xl
             "
           >
-            {getMonthTitle(
-              month,
-            )}
+            {view === "month"
+              ? getMonthTitle(
+                  month,
+                )
+              : getDateTitle(
+                  selectedDate,
+                )}
           </h1>
         </div>
 
-        <nav
+        <div
           className="
             flex
-            items-center
-            gap-2
+            rounded-xl
+            border
+            border-[var(--border)]
+            bg-[var(--surface)]
+            p-1
           "
         >
           <Link
             href={
-              `/calendar?month=${previousMonth}`
+              `/calendar?view=month&month=${month}`
             }
-            className="
-              rounded-xl
-              border
-              border-[var(--border)]
+            className={`
+              rounded-lg
               px-3
-              py-2
-              text-sm
+              py-1.5
+              text-xs
+              font-medium
               transition
-              hover:bg-[var(--surface)]
-            "
+
+              ${
+                view === "month"
+                  ? "bg-[var(--foreground)] text-[var(--background)]"
+                  : "text-[var(--muted)]"
+              }
+            `}
           >
-            ←
+            月
           </Link>
 
           <Link
             href={
-              `/calendar?month=${currentMonth}`
+              getDayHref(
+                selectedDate,
+              )
             }
-            className="
-              rounded-xl
-              border
-              border-[var(--border)]
-              px-4
-              py-2
-              text-sm
-              transition
-              hover:bg-[var(--surface)]
-            "
-          >
-            今天
-          </Link>
-
-          <Link
-            href={
-              `/calendar?month=${nextMonth}`
-            }
-            className="
-              rounded-xl
-              border
-              border-[var(--border)]
+            className={`
+              rounded-lg
               px-3
-              py-2
-              text-sm
+              py-1.5
+              text-xs
+              font-medium
               transition
-              hover:bg-[var(--surface)]
-            "
+
+              ${
+                view === "day"
+                  ? "bg-[var(--foreground)] text-[var(--background)]"
+                  : "text-[var(--muted)]"
+              }
+            `}
           >
-            →
+            日
           </Link>
-        </nav>
+        </div>
       </div>
 
       <div
         className="
-          overflow-hidden
-          rounded-2xl
-          border
-          border-[var(--border)]
+          mb-3
+          flex
+          items-center
+          justify-end
+          gap-2
+          px-4
+
+          sm:px-0
         "
       >
+        {view === "month" ? (
+          <>
+            <Link
+              href={
+                `/calendar?view=month&month=${previousMonth}`
+              }
+              className="
+                rounded-xl
+                border
+                border-[var(--border)]
+                px-3
+                py-2
+                text-xs
+
+                sm:text-sm
+              "
+            >
+              ←
+            </Link>
+
+            <Link
+              href={
+                `/calendar?view=month&month=${currentMonth}`
+              }
+              className="
+                rounded-xl
+                border
+                border-[var(--border)]
+                px-3
+                py-2
+                text-xs
+
+                sm:px-4
+                sm:text-sm
+              "
+            >
+              今天
+            </Link>
+
+            <Link
+              href={
+                `/calendar?view=month&month=${nextMonth}`
+              }
+              className="
+                rounded-xl
+                border
+                border-[var(--border)]
+                px-3
+                py-2
+                text-xs
+
+                sm:text-sm
+              "
+            >
+              →
+            </Link>
+          </>
+        ) : (
+          <>
+            <Link
+              href={
+                getDayHref(
+                  previousDay,
+                )
+              }
+              className="
+                rounded-xl
+                border
+                border-[var(--border)]
+                px-3
+                py-2
+                text-xs
+
+                sm:text-sm
+              "
+            >
+              ←
+            </Link>
+
+            <Link
+              href={
+                getDayHref(
+                  today,
+                )
+              }
+              className="
+                rounded-xl
+                border
+                border-[var(--border)]
+                px-3
+                py-2
+                text-xs
+
+                sm:text-sm
+              "
+            >
+              今天
+            </Link>
+
+            <Link
+              href={
+                getDayHref(
+                  nextDay,
+                )
+              }
+              className="
+                rounded-xl
+                border
+                border-[var(--border)]
+                px-3
+                py-2
+                text-xs
+
+                sm:text-sm
+              "
+            >
+              →
+            </Link>
+          </>
+        )}
+      </div>
+
+      {view === "month" ? (
         <div
           className="
-            grid w-full grid-cols-7
-            border-b
+            overflow-hidden
+            border-y
             border-[var(--border)]
-            bg-[var(--surface)]
+
+            sm:rounded-2xl
+            sm:border
           "
         >
-          {WEEKDAYS.map(
-            (weekday) => (
-              <div
-                key={
-                  weekday
-                }
-                className="
-                  px-2
-                  py-3
-                  text-center
-                  text-[10px] sm:text-xs
-                  font-medium
-                  text-[var(--muted)]
-                "
-              >
-                {weekday}
-              </div>
-            ),
-          )}
-        </div>
-
-        <div
-          className="
-            grid w-full grid-cols-7
-          "
-        >
-          {grid.days.map(
-            (
-              day,
-              index,
-            ) => {
-              const dayEvents =
-                eventsByDate.get(
-                  day.date,
-                ) ?? [];
-
-              const isToday =
-                day.date ===
-                today;
-
-              return (
+          <div
+            className="
+              grid
+              w-full
+              grid-cols-7
+              border-b
+              border-[var(--border)]
+              bg-[var(--surface)]
+            "
+          >
+            {WEEKDAYS.map(
+              (weekday) => (
                 <div
                   key={
-                    day.date
+                    weekday
                   }
-                  className={`
-                    min-h-32
-                    border-[var(--border)]
-                    p-2
-                    sm:min-h-40
-                    sm:p-3
+                  className="
+                    px-0.5
+                    py-2
+                    text-center
+                    text-[9px]
+                    font-medium
+                    text-[var(--muted)]
 
-                    ${
-                      index %
-                        7 !==
-                      6
-                        ? "border-r"
-                        : ""
-                    }
-
-                    ${
-                      index <
-                      35
-                        ? "border-b"
-                        : ""
-                    }
-
-                    ${
-                      day.inCurrentMonth
-                        ? ""
-                        : "opacity-40"
-                    }
-                  `}
+                    sm:px-2
+                    sm:py-3
+                    sm:text-xs
+                  "
                 >
-                  <div
-                    className="
-                      mb-2
-                      flex
-                      justify-end
-                    "
-                  >
-                    <span
-                      className={`
-                        flex
-                        h-7
-                        w-7
-                        items-center
-                        justify-center
-                        rounded-full
-                        text-sm
+                  {weekday}
+                </div>
+              ),
+            )}
+          </div>
 
-                        ${
-                          isToday
-                            ? "bg-[var(--foreground)] text-[var(--background)]"
-                            : ""
-                        }
-                      `}
-                    >
-                      {
-                        day.day
+          <div
+            className="
+              grid
+              w-full
+              grid-cols-7
+            "
+          >
+            {grid.days.map(
+              (
+                day,
+                index,
+              ) => {
+                const dayEvents =
+                  eventsByDate.get(
+                    day.date,
+                  ) ?? [];
+
+                const isToday =
+                  day.date ===
+                  today;
+
+                return (
+                  <div
+                    key={
+                      day.date
+                    }
+                    className={`
+                      min-w-0
+                      min-h-20
+                      overflow-hidden
+                      border-[var(--border)]
+                      p-1
+
+                      sm:min-h-40
+                      sm:p-3
+
+                      ${
+                        index % 7 !== 6
+                          ? "border-r"
+                          : ""
                       }
-                    </span>
-                  </div>
 
-                  <div
-                    className="
-                      space-y-1
-                    "
+                      ${
+                        index < 35
+                          ? "border-b"
+                          : ""
+                      }
+
+                      ${
+                        day.inCurrentMonth
+                          ? ""
+                          : "opacity-40"
+                      }
+                    `}
                   >
-                    {dayEvents
-                      .slice(
-                        0,
-                        4,
-                      )
-                      .map(
-                        (
-                          event,
-                        ) => {
-                          const time =
-                            getEventTimeLabel(
-                              event,
-                            );
+                    <div
+                      className="
+                        mb-1
+                        flex
+                        justify-end
 
-                          return (
-                            <div
+                        sm:mb-2
+                      "
+                    >
+                      <Link
+                        href={
+                          getDayHref(
+                            day.date,
+                          )
+                        }
+                        className={`
+                          flex
+                          h-5
+                          w-5
+                          items-center
+                          justify-center
+                          rounded-full
+                          text-[10px]
+                          tabular-nums
+
+                          sm:h-7
+                          sm:w-7
+                          sm:text-sm
+
+                          ${
+                            isToday
+                              ? "bg-[var(--foreground)] text-[var(--background)]"
+                              : ""
+                          }
+                        `}
+                      >
+                        {day.day}
+                      </Link>
+                    </div>
+
+                    <div
+                      className="
+                        min-w-0
+                        space-y-0.5
+
+                        sm:space-y-1
+                      "
+                    >
+                      {dayEvents
+                        .slice(
+                          0,
+                          3,
+                        )
+                        .map(
+                          (
+                            event,
+                          ) => (
+                            <MonthEvent
                               key={
                                 event.id
                               }
-                              className="
-                                overflow-hidden
-                                rounded-lg
-                                bg-[var(--surface)]
-                                px-2
-                                py-1.5
-                                text-[10px] sm:text-xs
-                              "
-                            >
-                              {time ? (
-                                <span
-                                  className="
-                                    mr-1
-                                    text-[var(--muted)]
-                                  "
-                                >
-                                  {
-                                    time
-                                  }
-                                </span>
-                              ) : null}
+                              event={
+                                event
+                              }
+                            />
+                          ),
+                        )}
 
-                              <span
-                                className="
-                                  font-medium
-                                "
-                              >
-                                {
-                                  event.title
-                                }
-                              </span>
-                            </div>
-                          );
-                        },
-                      )}
+                      {dayEvents.length > 3 ? (
+                        <p
+                          className="
+                            overflow-hidden
+                            text-ellipsis
+                            whitespace-nowrap
+                            px-0.5
+                            text-[8px]
+                            text-[var(--muted)]
 
-                    {dayEvents.length >
-                    4 ? (
-                      <p
-                        className="
-                          px-1
-                          text-[10px] sm:text-xs
-                          text-[var(--muted)]
-                        "
-                      >
-                        +
-                        {dayEvents.length -
-                          4}{" "}
-                        件
-                      </p>
-                    ) : null}
+                            sm:px-1
+                            sm:text-xs
+                          "
+                        >
+                          +
+                          {
+                            dayEvents.length -
+                            3
+                          }{" "}
+                          件
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              );
-            },
+                );
+              },
+            )}
+          </div>
+        </div>
+      ) : (
+        <div
+          className="
+            border-y
+            border-[var(--border)]
+            px-4
+            py-4
+
+            sm:rounded-2xl
+            sm:border
+            sm:p-5
+          "
+        >
+          <p
+            className="
+              mb-4
+              text-xs
+              text-[var(--muted)]
+            "
+          >
+            {selectedEvents.length} 件行程
+          </p>
+
+          {selectedEvents.length === 0 ? (
+            <div
+              className="
+                rounded-xl
+                border
+                border-dashed
+                border-[var(--border)]
+                px-5
+                py-10
+                text-center
+              "
+            >
+              <p
+                className="
+                  text-sm
+                  font-medium
+                "
+              >
+                這天沒有行程。
+              </p>
+            </div>
+          ) : (
+            <div
+              className="
+                space-y-2
+              "
+            >
+              {selectedEvents.map(
+                (event) => (
+                  <DayEvent
+                    key={
+                      event.id
+                    }
+                    event={
+                      event
+                    }
+                  />
+                ),
+              )}
+            </div>
           )}
         </div>
-      </div>
+      )}
     </section>
   );
 }

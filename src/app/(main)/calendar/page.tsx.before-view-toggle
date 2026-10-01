@@ -24,9 +24,8 @@ type CalendarPageProps = {
   searchParams:
     Promise<{
       month?: string;
+
       google?: string;
-      view?: string;
-      date?: string;
     }>;
 };
 
@@ -35,10 +34,17 @@ function getTodayKey() {
     new Intl.DateTimeFormat(
       "en-US",
       {
-        timeZone: "Asia/Taipei",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
+        timeZone:
+          "Asia/Taipei",
+
+        year:
+          "numeric",
+
+        month:
+          "2-digit",
+
+        day:
+          "2-digit",
       },
     ).formatToParts(
       new Date(),
@@ -75,48 +81,9 @@ function getTodayKey() {
   return `${year}-${month}-${day}`;
 }
 
-function isValidDateKey(
-  value: string | undefined,
-): value is string {
-  if (
-    !value ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(
-      value,
-    )
-  ) {
-    return false;
-  }
-
-  const [
-    year,
-    month,
-    day,
-  ] =
-    value
-      .split("-")
-      .map(Number);
-
-  const parsed =
-    new Date(
-      Date.UTC(
-        year,
-        month - 1,
-        day,
-      ),
-    );
-
-  return (
-    parsed.getUTCFullYear() ===
-      year &&
-    parsed.getUTCMonth() ===
-      month - 1 &&
-    parsed.getUTCDate() ===
-      day
-  );
-}
-
 function getGoogleMessage(
-  status: string | undefined,
+  status:
+    string | undefined,
 ) {
   switch (status) {
     case "connected":
@@ -148,40 +115,10 @@ export default async function CalendarPage({
   const params =
     await searchParams;
 
-  const today =
-    getTodayKey();
-
-  const view:
-    "month" | "day" =
-    params.view === "day"
-      ? "day"
-      : "month";
-
-  const requestedMonth =
+  const month =
     normalizeCalendarMonth(
       params.month,
     );
-
-  const selectedDate =
-    isValidDateKey(
-      params.date,
-    )
-      ? params.date
-      : requestedMonth ===
-          today.slice(
-            0,
-            7,
-          )
-        ? today
-        : `${requestedMonth}-01`;
-
-  const month =
-    view === "day"
-      ? selectedDate.slice(
-          0,
-          7,
-        )
-      : requestedMonth;
 
   const grid =
     getCalendarMonthGrid(
@@ -222,7 +159,7 @@ export default async function CalendarPage({
             border
             border-[var(--border)]
             bg-[var(--surface)]
-            px-4
+            px-1 sm:px-4
             py-3
             text-sm
           "
@@ -296,16 +233,10 @@ export default async function CalendarPage({
           month
         }
         today={
-          today
+          getTodayKey()
         }
         events={
           events
-        }
-        view={
-          view
-        }
-        selectedDate={
-          selectedDate
         }
       />
     </main>
