@@ -1,77 +1,18 @@
 import { z } from "zod";
 
 export const petPoseSchema = z.enum([
-  // pet00
   "normal",
-
-  // pet01
   "cute",
-
-  // pet02
-  "love",
-
-  // pet03
-  "excited",
-
-  // pet04
   "happy",
-
-  // pet05
-  "playing",
-
-  // pet06
-  "confused",
-
-  // pet07
-  "thinking",
-
-  // pet08
-  "surprised",
-
-  // pet09
-  "sad",
-
-  // pet10
+  "excited",
   "angry",
-
-  // pet11
+  "sad",
   "resting",
-
-  // pet12
-  "working",
-
-  // pet13
-  "drinking",
-
-  // pet14
-  "eating",
-
-  // pet15
-  "studying",
-
-  // pet16
-  "phone",
-
-  // pet17
-  "music",
-
-  // pet18
   "sleeping",
-
-  // pet19
-  "hiding",
-
-  // pet20
-  "rolling",
-
-  // pet21
-  "exhausted",
-
-  // pet22
-  "food",
-
-  // pet23
+  "love",
   "petted",
+  "playing",
+  "rolling",
 ]);
 
 export const petMemoryTypeSchema = z.enum([

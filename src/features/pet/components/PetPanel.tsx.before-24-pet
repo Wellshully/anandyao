@@ -297,12 +297,7 @@ export default function PetPanel({
       </div>
 
       <div className="mt-4">
-        <PetCharacter
-          mood={state.mood}
-          animation={animation}
-          pose={petPose}
-          thinking={isTalking}
-        />
+        <PetCharacter mood={state.mood} animation={animation} pose={petPose} />
       </div>
 
       <div

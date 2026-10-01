@@ -35,77 +35,41 @@ type PetCharacterProps = {
  * 不修改 AI / memory / action 邏輯。
  */
 const poseImages: Record<PetPose, string> = {
-  // pet00 — 一般、待機
+  // 一般
   normal: "/pet/pet00.png",
 
-  // pet01 — 眨眼、俏皮、可愛
-  cute: "/pet/pet01.png",
+  // 可愛 / 害羞探頭
+  cute: "/pet/pet19.png",
 
-  // pet02 — 愛心、親密
-  love: "/pet/pet02.png",
+  // 閃亮開心
+  happy: "/pet/pet23.png",
 
-  // pet03 — 非常興奮
+  // 興奮
   excited: "/pet/pet03.png",
 
-  // pet04 — 開心大笑
-  happy: "/pet/pet04.png",
-
-  // pet05 — 玩耍、蹦跳
-  playing: "/pet/pet05.png",
-
-  // pet06 — 疑惑
-  confused: "/pet/pet06.png",
-
-  // pet07 — 思考
-  thinking: "/pet/pet07.png",
-
-  // pet08 — 驚訝、嚇到
-  surprised: "/pet/pet08.png",
-
-  // pet09 — 難過、哭哭
-  sad: "/pet/pet09.png",
-
-  // pet10 — 生氣
+  // 生氣
   angry: "/pet/pet10.png",
 
-  // pet11 — 疲倦、想睡
-  resting: "/pet/pet11.png",
+  // 哭哭
+  sad: "/pet/pet09.png",
 
-  // pet12 — 用電腦、工作
-  working: "/pet/pet12.png",
+  // 悠閒休息 / 喝飲料
+  resting: "/pet/pet13.png",
 
-  // pet13 — 喝飲料、悠閒
-  drinking: "/pet/pet13.png",
-
-  // pet14 — 吃點心
-  eating: "/pet/pet14.png",
-
-  // pet15 — 看書、讀書
-  studying: "/pet/pet15.png",
-
-  // pet16 — 看手機
-  phone: "/pet/pet16.png",
-
-  // pet17 — 戴耳機、聽音樂
-  music: "/pet/pet17.png",
-
-  // pet18 — 正式睡覺
+  // 正式睡覺
   sleeping: "/pet/pet18.png",
 
-  // pet19 — 偷偷探頭
-  hiding: "/pet/pet19.png",
+  // 愛心
+  love: "/pet/pet02.png",
 
-  // pet20 — 笑到翻滾
+  // 被摸摸後俏皮開心
+  petted: "/pet/pet01.png",
+
+  // 開心蹦跳
+  playing: "/pet/pet05.png",
+
+  // 笑到翻滾
   rolling: "/pet/pet20.png",
-
-  // pet21 — 累趴、耗盡
-  exhausted: "/pet/pet21.png",
-
-  // pet22 — 抱著食物
-  food: "/pet/pet22.png",
-
-  // pet23 — 被摸摸後閃亮開心
-  petted: "/pet/pet23.png",
 };
 
 
