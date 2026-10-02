@@ -1,8 +1,6 @@
 import "server-only";
 
 import { getDates } from "@/features/dates/lib/get-dates";
-import { getCalendarEvents } from "@/features/calendar/lib/get-calendar-events";
-import type { CalendarEvent } from "@/features/calendar/types";
 import { getLatestPetDailyReport } from "@/features/pet/report/get-latest-report";
 import { getCurrentProfile } from "@/features/profile/lib/get-current-profile";
 import { getTodayOverview } from "@/features/today/lib/get-today-overview";
@@ -54,32 +52,6 @@ export type HomeDailyReportSummary = {
   createdAt: string;
 };
 
-export type HomeScheduleItem = {
-  id: string;
-
-  kind:
-    | "date"
-    | "personal"
-    | "study"
-    | "google_calendar"
-    | "pet_task"
-    | "pet_recurring_schedule";
-
-  title: string;
-  subtitle: string | null;
-
-  startAt: number | null;
-  endAt: number | null;
-
-  timing:
-    | "event"
-    | "deadline"
-    | "untimed";
-
-  href: string | null;
-  completed: boolean;
-};
-
 export type HomeDashboard = {
   now: number;
   today: string;
@@ -88,9 +60,7 @@ export type HomeDashboard = {
     displayName: string;
   };
 
-  nextUp: HomeScheduleItem | null;
-
-  todayUntimed: HomeScheduleItem[];
+  nextUp: TodayItem | null;
 
   urgent: HomeUrgentItem[];
 
@@ -126,7 +96,7 @@ function getDayRange(dateKey: string) {
 }
 
 function getNextUp(
-  items: HomeScheduleItem[],
+  items: TodayItem[],
   now: number,
 ) {
   const timed = items
@@ -141,230 +111,26 @@ function getNextUp(
         (b.startAt ?? Infinity),
     );
 
-  /*
-   * An event that is happening right now
-   * has priority over a future event.
-   *
-   * Some Pet recurring occurrences are
-   * point-in-time events where start=end,
-   * so give them a short 30-minute active
-   * window for the homepage.
-   */
   const current = timed.find(
-    (item) => {
-      if (
-        item.timing !== "event" ||
-        item.startAt === null ||
-        item.startAt > now
-      ) {
-        return false;
-      }
-
-      const effectiveEnd =
-        item.endAt !== null &&
-        item.endAt > item.startAt
-          ? item.endAt
-          : item.startAt +
-            30 * 60 * 1000;
-
-      return now < effectiveEnd;
-    },
+    (item) =>
+      item.startAt !== null &&
+      item.startAt <= now &&
+      item.endAt !== null &&
+      item.endAt > now,
   );
 
   if (current) {
     return current;
   }
 
-  /*
-   * Deadlines that have already passed
-   * do not become "Next up".
-   * They are handled by Attention instead.
-   */
-  const nextTimed =
+  return (
     timed.find(
       (item) =>
         item.startAt !== null &&
         item.startAt >= now,
-    ) ?? null;
-
-  if (nextTimed) {
-    return nextTimed;
-  }
-
-  /*
-   * If there is no current / upcoming
-   * timed item, still show one of today's
-   * untimed items as the main Next Up.
-   *
-   * Timed items always have priority.
-   */
-  return (
-    items.find(
-      (item) =>
-        !item.completed &&
-        item.startAt === null,
     ) ?? null
   );
 }
-
-
-function fromTodayItem(
-  item: TodayItem,
-): HomeScheduleItem | null {
-  let kind:
-    HomeScheduleItem["kind"];
-
-  switch (item.kind) {
-    case "date":
-      kind = "date";
-      break;
-
-    case "personal":
-      kind = "personal";
-      break;
-
-    case "study_assignment":
-      kind = "study";
-      break;
-
-    /*
-     * Announcement / Mail belong to the
-     * Study section, not Next Up.
-     */
-    case "study_announcement":
-    case "study_mail":
-      return null;
-  }
-
-  return {
-    id:
-      `today:${item.kind}:${item.id}`,
-
-    kind,
-
-    title:
-      item.title,
-
-    subtitle:
-      item.subtitle,
-
-    startAt:
-      item.startAt,
-
-    endAt:
-      item.endAt,
-
-    timing:
-      item.kind === "study_assignment"
-        ? "deadline"
-        : item.startAt === null
-          ? "untimed"
-          : "event",
-
-    href:
-      item.href,
-
-    completed:
-      item.completed,
-  };
-}
-
-
-function fromCalendarEvent(
-  event: CalendarEvent,
-): HomeScheduleItem | null {
-  let kind:
-    HomeScheduleItem["kind"];
-
-  let subtitle:
-    string;
-
-  switch (event.source) {
-    case "google":
-      kind =
-        "google_calendar";
-
-      subtitle =
-        "Google Calendar";
-
-      break;
-
-    case "pet_task":
-      kind =
-        "pet_task";
-
-      subtitle =
-        "萌蛋待辦";
-
-      break;
-
-    case "pet_recurring_schedule":
-      kind =
-        "pet_recurring_schedule";
-
-      subtitle =
-        "固定行程";
-
-      break;
-
-    /*
-     * Date + Study already have richer
-     * data from getTodayOverview().
-     *
-     * Excluding them here prevents
-     * duplicated homepage entries.
-     */
-    case "date":
-    case "study":
-      return null;
-  }
-
-  const startAt =
-    event.startAt
-      ? Date.parse(
-          event.startAt,
-        )
-      : null;
-
-  const endAt =
-    event.endAt
-      ? Date.parse(
-          event.endAt,
-        )
-      : null;
-
-  return {
-    id:
-      `calendar:${event.id}`,
-
-    kind,
-
-    title:
-      event.title,
-
-    subtitle,
-
-    startAt,
-
-    endAt,
-
-    timing:
-      event.allDay ||
-      startAt === null
-        ? "untimed"
-        : event.kind === "deadline"
-          ? "deadline"
-          : "event",
-
-    href:
-      event.href ??
-      "/calendar",
-
-    completed:
-      event.completed,
-  };
-}
-
 
 function sortPetTasks(
   tasks: HomePetTask[],
@@ -403,7 +169,6 @@ export async function getHomeDashboard(): Promise<HomeDashboard> {
     profile,
     overview,
     dates,
-    calendarEvents,
   ] = await Promise.all([
     createClient(),
     requireUser(),
@@ -411,11 +176,6 @@ export async function getHomeDashboard(): Promise<HomeDashboard> {
     getCurrentProfile(),
     getTodayOverview(),
     getDates(),
-
-    getCalendarEvents({
-      startDate: today,
-      endDate: today,
-    }),
   ]);
 
   const { start: todayStart, end: todayEnd } =
@@ -587,63 +347,6 @@ export async function getHomeDashboard(): Promise<HomeDashboard> {
     },
   );
 
-  /*
-   * --------------------------------
-   * Homepage schedule
-   * --------------------------------
-   *
-   * Existing Today data supplies:
-   * - Personal
-   * - Date itinerary
-   * - Study deadlines
-   *
-   * Calendar supplies:
-   * - Google Calendar
-   * - Pet Tasks
-   * - Pet recurring schedules
-   */
-  const homeScheduleItems: HomeScheduleItem[] = [
-    ...todayItems
-      .map(fromTodayItem)
-      .filter(
-        (
-          item,
-        ): item is HomeScheduleItem =>
-          item !== null,
-      ),
-
-    ...calendarEvents
-      .map(fromCalendarEvent)
-      .filter(
-        (
-          item,
-        ): item is HomeScheduleItem =>
-          item !== null,
-      ),
-  ];
-
-  const nextUp =
-    getNextUp(
-      homeScheduleItems,
-      now,
-    );
-
-  const todayUntimed =
-    homeScheduleItems
-      .filter(
-        (item) =>
-          !item.completed &&
-          item.startAt === null &&
-          item.id !== nextUp?.id,
-      )
-      .sort(
-        (a, b) =>
-          a.title.localeCompare(
-            b.title,
-            "zh-TW",
-          ),
-      );
-
   const todayPetTasks = petTasks.filter(
     (task) =>
       task.dueAt !== null &&
@@ -763,9 +466,10 @@ export async function getHomeDashboard(): Promise<HomeDashboard> {
       displayName: profile.displayName,
     },
 
-    nextUp,
-
-    todayUntimed,
+    nextUp: getNextUp(
+      todayItems,
+      now,
+    ),
 
     urgent,
 

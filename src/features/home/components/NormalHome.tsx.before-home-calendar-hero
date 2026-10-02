@@ -6,7 +6,6 @@ import AppShell from "@/components/layout/AppShell";
 import {
   getHomeDashboard,
   type HomeDateSummary,
-  type HomeScheduleItem,
   type HomeUrgentItem,
 } from "@/features/home/lib/get-home-dashboard";
 
@@ -38,15 +37,14 @@ const quickLinks = [
 ] as const;
 
 const itemKindLabels: Record<
-  HomeScheduleItem["kind"],
+  TodayItem["kind"],
   string
 > = {
   date: "Date",
   personal: "Personal",
-  study: "Study",
-  google_calendar: "Google",
-  pet_task: "Pet Task",
-  pet_recurring_schedule: "固定行程",
+  study_assignment: "Study",
+  study_announcement: "Study",
+  study_mail: "Mail",
 };
 
 const dateKindLabels: Record<
@@ -144,24 +142,22 @@ function formatDateTime(
 }
 
 function getItemTime(
-  item: HomeScheduleItem,
+  item: TodayItem,
 ) {
   if (item.startAt === null) {
-    return "今天";
+    return "未指定時間";
   }
 
   if (
-    item.timing ===
-    "deadline"
+    item.kind ===
+    "study_assignment"
   ) {
     return `截止 ${formatTime(
       item.startAt,
     )}`;
   }
 
-  return formatTime(
-    item.startAt,
-  );
+  return formatTime(item.startAt);
 }
 
 function SectionHeader({
@@ -202,24 +198,9 @@ function SectionHeader({
 
 function NextUpCard({
   item,
-  untimedItems,
 }: {
-  item: HomeScheduleItem | null;
-  untimedItems: HomeScheduleItem[];
+  item: TodayItem | null;
 }) {
-  const compactItems =
-    untimedItems.slice(
-      0,
-      5,
-    );
-
-  const remainingCount =
-    Math.max(
-      0,
-      untimedItems.length -
-        compactItems.length,
-    );
-
   return (
     <Link
       href="/calendar"
@@ -239,32 +220,15 @@ function NextUpCard({
     >
       <div className="p-6 sm:p-8">
         <div className="flex items-start justify-between gap-6">
-          <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--accent)]">
-            Next up
-          </p>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--accent)]">
+              Next up
+            </p>
 
-          <span
-            aria-hidden="true"
-            className="text-lg text-[var(--muted)] transition-transform group-hover:translate-x-1"
-          >
-            →
-          </span>
-        </div>
-
-        <div
-          className={
-            untimedItems.length > 0
-              ? "mt-6 grid gap-8 sm:grid-cols-[minmax(0,1fr)_15rem]"
-              : "mt-6"
-          }
-        >
-          <div className="min-w-0">
             {item ? (
               <>
-                <p className="text-sm font-medium text-[var(--accent)]">
-                  {getItemTime(
-                    item,
-                  )}
+                <p className="mt-6 text-sm font-medium text-[var(--accent)]">
+                  {getItemTime(item)}
                 </p>
 
                 <h2 className="font-story mt-2 text-3xl font-semibold sm:text-4xl">
@@ -273,9 +237,7 @@ function NextUpCard({
 
                 {item.subtitle && (
                   <p className="mt-3 text-sm text-[var(--muted)]">
-                    {
-                      item.subtitle
-                    }
+                    {item.subtitle}
                   </p>
                 )}
 
@@ -291,80 +253,23 @@ function NextUpCard({
               </>
             ) : (
               <>
-                <h2 className="font-story text-3xl font-semibold sm:text-4xl">
-                  {untimedItems.length >
-                  0
-                    ? "今天沒有下一個定時行程"
-                    : "今天暫時沒有下一件事"}
+                <h2 className="font-story mt-6 text-3xl font-semibold sm:text-4xl">
+                  今天暫時沒有下一件事
                 </h2>
 
                 <p className="mt-3 text-sm text-[var(--muted)]">
-                  {untimedItems.length >
-                  0
-                    ? "今天還有一些沒有指定時間的事項。"
-                    : "有空可以慢慢來。"}
+                  有空可以慢慢來。
                 </p>
               </>
             )}
           </div>
 
-          {untimedItems.length >
-            0 && (
-            <aside
-              className="
-                border-t
-                border-[var(--border)]
-                pt-5
-                sm:border-l
-                sm:border-t-0
-                sm:pl-6
-                sm:pt-0
-              "
-            >
-              <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
-                今天還有
-              </p>
-
-              <div className="mt-3 space-y-2">
-                {compactItems.map(
-                  (
-                    compactItem,
-                  ) => (
-                    <p
-                      key={
-                        compactItem.id
-                      }
-                      className="text-[11px] leading-5 text-[var(--muted)]"
-                    >
-                      <span className="font-medium text-[var(--foreground)]">
-                        {
-                          itemKindLabels[
-                            compactItem
-                              .kind
-                          ]
-                        }
-                      </span>
-                      {" · "}
-                      {
-                        compactItem.title
-                      }
-                    </p>
-                  ),
-                )}
-
-                {remainingCount >
-                  0 && (
-                  <p className="text-[10px] text-[var(--muted)]">
-                    還有{" "}
-                    {
-                      remainingCount
-                    }{" "}
-                    件
-                  </p>
-                )}
-              </div>
-            </aside>
-          )}
+          <span
+            aria-hidden="true"
+            className="text-lg text-[var(--muted)] transition-transform group-hover:translate-x-1"
+          >
+            →
+          </span>
         </div>
 
         <p className="mt-8 text-xs font-medium text-[var(--accent)]">
@@ -621,9 +526,6 @@ export default async function NormalHome() {
           <NextUpCard
             item={
               dashboard.nextUp
-            }
-            untimedItems={
-              dashboard.todayUntimed
             }
           />
         </section>
