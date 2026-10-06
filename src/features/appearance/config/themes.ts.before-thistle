@@ -2,7 +2,6 @@ export const THEME_IDS = [
   "system",
   "an-yao",
   "strawberry-milk",
-  "thistle",
   "dark",
   "mocha",
   "tokyo-night",
@@ -56,17 +55,6 @@ export const THEMES: readonly ThemeDefinition[] =
         "#df4775",
       ],
       browserColor: "#fff0f5",
-    },
-    {
-      id: "thistle",
-      name: "Thistle",
-      description: "柔和的灰粉紫色調",
-      colors: [
-        "#ecdfe6",
-        "#d9bfcc",
-        "#814b67",
-      ],
-      browserColor: "#ecdfe6",
     },
     {
       id: "dark",

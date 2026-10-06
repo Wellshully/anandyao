@@ -1,0 +1,139 @@
+import { randomUUID } from "node:crypto";
+
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+
+import {
+  enqueueJob,
+} from "@/lib/jobs/enqueue-job";
+
+import {
+  runWorker,
+} from "@/lib/jobs/run-worker";
+
+import {
+  requireUser,
+} from "@/lib/auth/require-user";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type TestAction =
+  | "enqueue"
+  | "run";
+
+function isTestAction(
+  value: unknown,
+): value is TestAction {
+  return (
+    value === "enqueue" ||
+    value === "run"
+  );
+}
+
+export async function POST(
+  request: NextRequest,
+) {
+  /*
+   * This endpoint exists only for local
+   * infrastructure testing.
+   */
+  if (
+    process.env.NODE_ENV !==
+    "development"
+  ) {
+    return NextResponse.json(
+      {
+        error: "Not found.",
+      },
+      {
+        status: 404,
+      },
+    );
+  }
+
+  try {
+    const user =
+      await requireUser();
+
+    const body: unknown =
+      await request.json();
+
+    const action =
+      typeof body === "object" &&
+      body !== null &&
+      "action" in body
+        ? body.action
+        : null;
+
+    if (!isTestAction(action)) {
+      return NextResponse.json(
+        {
+          error:
+            'Action must be "enqueue" or "run".',
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (action === "enqueue") {
+      const testId =
+        randomUUID();
+
+      const result =
+        await enqueueJob({
+          jobType:
+            "system.test",
+
+          payload: {
+            testId,
+            requestedBy:
+              user.id,
+          },
+
+          idempotencyKey:
+            `system-test:${testId}`,
+        });
+
+      return NextResponse.json({
+        action,
+        ...result,
+      });
+    }
+
+    const workerId =
+      `system-test:${user.id}:${randomUUID()}`;
+
+    const result =
+      await runWorker({
+        workerId,
+        limit: 1,
+      });
+
+    return NextResponse.json({
+      action,
+      result,
+    });
+  } catch (cause) {
+    console.error(
+      "[jobs] system test failed:",
+      cause,
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          cause instanceof Error
+            ? cause.message
+            : "Unknown error",
+      },
+      {
+        status: 500,
+      },
+    );
+  }
+}

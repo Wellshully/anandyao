@@ -1,29 +1,43 @@
-import { NextRequest, NextResponse } from "next/server";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
 
-import { syncAllConfiguredNtuCoolAccounts } from "@/features/study/lib/sync-ntu-cool";
+import {
+  enqueueConfiguredStudyCoolSyncJobs,
+} from "@/features/study/jobs/enqueue-study-cool-sync";
 
 export const runtime = "nodejs";
-
 export const dynamic = "force-dynamic";
 
-function isAuthorized(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
+function isAuthorized(
+  request: NextRequest,
+) {
+  const secret =
+    process.env.CRON_SECRET;
 
   if (!secret) {
-    console.error("CRON_SECRET is not configured.");
+    console.error(
+      "CRON_SECRET is not configured.",
+    );
 
     return false;
   }
 
-  return request.headers.get("authorization") === `Bearer ${secret}`;
+  return (
+    request.headers.get(
+      "authorization",
+    ) === `Bearer ${secret}`
+  );
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest,
+) {
   if (!isAuthorized(request)) {
     return NextResponse.json(
       {
         success: false,
-
         error: "Unauthorized.",
       },
       {
@@ -33,28 +47,52 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const accounts = await syncAllConfiguredNtuCoolAccounts();
+    const result =
+      await enqueueConfiguredStudyCoolSyncJobs();
 
-    const failed = accounts.filter((account) => !account.success);
+    if (
+      result.jobs.length === 0
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "No configured NTU COOL accounts.",
+          ...result,
+        },
+        {
+          status: 500,
+        },
+      );
+    }
 
-    return NextResponse.json(
-      {
-        success: failed.length === 0,
+    return NextResponse.json({
+      success: true,
 
-        accounts,
-      },
-      {
-        status: failed.length === accounts.length ? 500 : 200,
-      },
-    );
+      /*
+       * This endpoint now acknowledges durable
+       * queue insertion, not completion of the
+       * actual COOL synchronization.
+       */
+      queued:
+        result.jobs.length,
+
+      ...result,
+    });
   } catch (cause) {
-    console.error("Background COOL sync worker failed:", cause);
+    console.error(
+      "Failed to enqueue background COOL sync:",
+      cause,
+    );
 
     return NextResponse.json(
       {
         success: false,
 
-        error: "Background COOL sync failed.",
+        error:
+          cause instanceof Error
+            ? cause.message
+            : "Failed to enqueue background COOL sync.",
       },
       {
         status: 500,

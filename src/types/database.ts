@@ -39,6 +39,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      background_jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          finished_at: string | null
+          id: string
+          idempotency_key: string | null
+          job_type: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          priority: number
+          run_at: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          idempotency_key?: string | null
+          job_type: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          payload?: Json
+          priority?: number
+          run_at?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          idempotency_key?: string | null
+          job_type?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          payload?: Json
+          priority?: number
+          run_at?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       calendar_item_notes: {
         Row: {
           created_at: string
@@ -1819,6 +1876,33 @@ export type Database = {
     }
     Functions: {
       cancel_date: { Args: { p_date_id: string }; Returns: undefined }
+      claim_background_jobs: {
+        Args: { p_limit?: number; p_worker_id: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          finished_at: string | null
+          id: string
+          idempotency_key: string | null
+          job_type: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          priority: number
+          run_at: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "background_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_cool_sync_lease: {
         Args: { p_lease_seconds?: number; p_user_id: string }
         Returns: string
@@ -1885,6 +1969,33 @@ export type Database = {
           database_bytes: number
           storage_bytes: number
         }[]
+      }
+      recover_stale_background_jobs: {
+        Args: { p_limit?: number; p_stale_before: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          finished_at: string | null
+          id: string
+          idempotency_key: string | null
+          job_type: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          priority: number
+          run_at: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "background_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       release_cool_sync_lease: {
         Args: { p_claim_token: string; p_user_id: string }
