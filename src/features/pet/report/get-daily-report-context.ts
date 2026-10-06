@@ -11,10 +11,8 @@ import type { DateItineraryItem } from "@/features/dates/types";
 
 const REPORT_LOOKAHEAD_DAYS = 7;
 
-const MAX_OVERDUE_STUDY = 5;
 const MAX_UPCOMING_STUDY = 8;
 
-const MAX_OVERDUE_TASKS = 5;
 const MAX_UPCOMING_TASKS = 8;
 const MAX_NO_DUE_TASKS = 5;
 
@@ -170,12 +168,22 @@ export type PetDailyReportContext = {
   dates: DailyReportDateItem[];
 
   study: {
+    /*
+     * Kept for generator compatibility.
+     * Daily Reports intentionally never include
+     * already overdue Study items.
+     */
     overdue: DailyReportStudyItem[];
     dueToday: DailyReportStudyItem[];
     upcoming: DailyReportStudyItem[];
   };
 
   petTasks: {
+    /*
+     * Kept for generator compatibility.
+     * Expired Pet Tasks are history, not current
+     * Daily Report reminders.
+     */
     overdue: DailyReportPetTaskItem[];
     dueToday: DailyReportPetTaskItem[];
     upcoming: DailyReportPetTaskItem[];
@@ -388,18 +396,11 @@ export async function getPetDailyReportContext({
       };
     });
 
-  const studyOverdue = studyItems
-    .filter((assignment) => {
-      return getDateKey(new Date(assignment.dueAt)) < today;
-    })
-    .sort(
-      (a, b) =>
-        new Date(b.dueAt).getTime() - new Date(a.dueAt).getTime(),
-    )
-    .slice(0, MAX_OVERDUE_STUDY);
-
   const studyDueToday = studyItems.filter((assignment) => {
-    return getDateKey(new Date(assignment.dueAt)) === today;
+    return (
+      getDateKey(new Date(assignment.dueAt)) === today &&
+      new Date(assignment.dueAt).getTime() > now.getTime()
+    );
   });
 
   const studyUpcoming = studyItems
@@ -468,19 +469,12 @@ export async function getPetDailyReportContext({
     } => task.dueAt !== null,
   );
 
-  const petTasksOverdue = petTasksWithDueDate
-    .filter((task) => {
-      return getDateKey(new Date(task.dueAt)) < today;
-    })
-    .sort(
-      (a, b) =>
-        new Date(b.dueAt).getTime() - new Date(a.dueAt).getTime(),
-    )
-    .slice(0, MAX_OVERDUE_TASKS);
-
   const petTasksDueToday = petTasksWithDueDate
     .filter((task) => {
-      return getDateKey(new Date(task.dueAt)) === today;
+      return (
+        getDateKey(new Date(task.dueAt)) === today &&
+        new Date(task.dueAt).getTime() > now.getTime()
+      );
     })
     .sort(
       (a, b) =>
@@ -688,7 +682,7 @@ export async function getPetDailyReportContext({
     dates: reportDates,
 
     study: {
-      overdue: studyOverdue,
+      overdue: [],
 
       dueToday: studyDueToday,
 
@@ -696,7 +690,7 @@ export async function getPetDailyReportContext({
     },
 
     petTasks: {
-      overdue: petTasksOverdue,
+      overdue: [],
 
       dueToday: petTasksDueToday,
 
