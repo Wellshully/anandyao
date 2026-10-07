@@ -13,20 +13,15 @@ import { siteConfig } from "@/config/site";
 import { getTodayOverview } from "@/features/today/lib/get-today-overview";
 
 import { getCurrentProfile } from "@/features/profile/lib/get-current-profile";
-import { getProjectUsage } from "@/features/profile/lib/get-project-usage";
-import { getCurrentSpaceRole } from "@/features/profile/lib/get-current-space-role";
 
 import { getInteractionState } from "@/features/interactions/lib/get-interaction-state";
 
 export default async function SiteHeader() {
-  const [todayItems, profile, role, interactionState] = await Promise.all([
+  const [todayItems, profile, interactionState] = await Promise.all([
     getTodayOverview(),
     getCurrentProfile(),
-    getCurrentSpaceRole(),
     getInteractionState(),
   ]);
-
-  const usage = role === "owner" ? await getProjectUsage() : null;
 
   return (
     <header
@@ -78,8 +73,6 @@ export default async function SiteHeader() {
 
             <ProfileMenu
               displayName={profile.displayName}
-              isOwner={role === "owner"}
-              usage={usage}
               interactionActionName={interactionState.actionName}
             />
           </div>

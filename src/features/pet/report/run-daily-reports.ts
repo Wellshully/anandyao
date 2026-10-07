@@ -27,6 +27,11 @@ type DailyReportStats = {
   failed: number;
 };
 
+type RunPetDailyReportsOptions = {
+  userId?: string;
+  force?: boolean;
+};
+
 type LocalDateTime = {
   date: string;
   time: string;
@@ -206,12 +211,14 @@ async function getOrCreateDailyReport({
   };
 }
 
-export async function runPetDailyReports(): Promise<DailyReportStats> {
+export async function runPetDailyReports(
+  options: RunPetDailyReportsOptions = {},
+): Promise<DailyReportStats> {
   const supabase = createAdminClient();
 
   const now = Date.now();
 
-  const { data: settings, error } = await supabase
+  let settingsQuery = supabase
     .from("pet_report_settings")
     .select(
       `
@@ -223,6 +230,19 @@ export async function runPetDailyReports(): Promise<DailyReportStats> {
       `,
     )
     .eq("enabled", true);
+
+  if (options.userId) {
+    settingsQuery =
+      settingsQuery.eq(
+        "user_id",
+        options.userId,
+      );
+  }
+
+  const {
+    data: settings,
+    error,
+  } = await settingsQuery;
 
   if (error) {
     throw new Error(
@@ -266,7 +286,10 @@ export async function runPetDailyReports(): Promise<DailyReportStats> {
        *
        * pet_report_deliveries prevents duplicates.
        */
-      if (local.time < reportTime) {
+      if (
+        !options.force &&
+        local.time < reportTime
+      ) {
         continue;
       }
 

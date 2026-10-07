@@ -1,3 +1,8 @@
+
+import {
+  requireSystemOwner,
+} from "@/lib/system/require-system-owner";
+
 import "server-only";
 
 import {
@@ -15,17 +20,46 @@ export type JobQueueOverview = {
     cancelled: number;
   };
 
+  workerHealth: {
+    workerName: string;
+
+    lastStartedAt: string | null;
+    lastFinishedAt: string | null;
+    lastSuccessAt: string | null;
+
+    lastWorkerId: string | null;
+
+    lastRecovered: number;
+    lastRequeued: number;
+    lastRecoveryDead: number;
+
+    lastClaimed: number;
+    lastSucceeded: number;
+    lastRetrying: number;
+    lastDead: number;
+
+    lastError: string | null;
+
+    updatedAt: string;
+  } | null;
+
   recentJobs: Array<{
     id: string;
     jobType: string;
     status: string;
+
     attempts: number;
     maxAttempts: number;
+
     runAt: string;
+
     lockedBy: string | null;
+
     startedAt: string | null;
     finishedAt: string | null;
+
     lastError: string | null;
+
     createdAt: string;
     updatedAt: string;
   }>;
@@ -34,6 +68,8 @@ export type JobQueueOverview = {
 export async function getJobQueueOverview(): Promise<
   JobQueueOverview
 > {
+  await requireSystemOwner();
+
   const supabase =
     createAdminClient();
 
@@ -48,6 +84,7 @@ export async function getJobQueueOverview(): Promise<
     succeeded,
     dead,
     cancelled,
+    health,
     recent,
   ] = await Promise.all([
     supabase
@@ -109,6 +146,15 @@ export async function getJobQueueOverview(): Promise<
       .eq("status", "cancelled"),
 
     supabase
+      .from("background_worker_health")
+      .select("*")
+      .eq(
+        "worker_name",
+        "background-job-worker",
+      )
+      .maybeSingle(),
+
+    supabase
       .from("background_jobs")
       .select(`
         id,
@@ -138,6 +184,7 @@ export async function getJobQueueOverview(): Promise<
     succeeded,
     dead,
     cancelled,
+    health,
     recent,
   ];
 
@@ -148,7 +195,7 @@ export async function getJobQueueOverview(): Promise<
 
   if (failed?.error) {
     throw new Error(
-      `Failed to read background job queue: ${failed.error.message}`,
+      `Failed to read background job system state: ${failed.error.message}`,
     );
   }
 
@@ -176,30 +223,89 @@ export async function getJobQueueOverview(): Promise<
         cancelled.count ?? 0,
     },
 
+    workerHealth:
+      health.data
+        ? {
+            workerName:
+              health.data.worker_name,
+
+            lastStartedAt:
+              health.data.last_started_at,
+
+            lastFinishedAt:
+              health.data.last_finished_at,
+
+            lastSuccessAt:
+              health.data.last_success_at,
+
+            lastWorkerId:
+              health.data.last_worker_id,
+
+            lastRecovered:
+              health.data.last_recovered,
+
+            lastRequeued:
+              health.data.last_requeued,
+
+            lastRecoveryDead:
+              health.data.last_recovery_dead,
+
+            lastClaimed:
+              health.data.last_claimed,
+
+            lastSucceeded:
+              health.data.last_succeeded,
+
+            lastRetrying:
+              health.data.last_retrying,
+
+            lastDead:
+              health.data.last_dead,
+
+            lastError:
+              health.data.last_error,
+
+            updatedAt:
+              health.data.updated_at,
+          }
+        : null,
+
     recentJobs:
       (recent.data ?? []).map(
         (job) => ({
-          id: job.id,
+          id:
+            job.id,
+
           jobType:
             job.job_type,
+
           status:
             job.status,
+
           attempts:
             job.attempts,
+
           maxAttempts:
             job.max_attempts,
+
           runAt:
             job.run_at,
+
           lockedBy:
             job.locked_by,
+
           startedAt:
             job.started_at,
+
           finishedAt:
             job.finished_at,
+
           lastError:
             job.last_error,
+
           createdAt:
             job.created_at,
+
           updatedAt:
             job.updated_at,
         }),

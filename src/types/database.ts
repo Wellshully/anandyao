@@ -96,6 +96,57 @@ export type Database = {
         }
         Relationships: []
       }
+      background_worker_health: {
+        Row: {
+          last_claimed: number
+          last_dead: number
+          last_error: string | null
+          last_finished_at: string | null
+          last_recovered: number
+          last_recovery_dead: number
+          last_requeued: number
+          last_retrying: number
+          last_started_at: string | null
+          last_succeeded: number
+          last_success_at: string | null
+          last_worker_id: string | null
+          updated_at: string
+          worker_name: string
+        }
+        Insert: {
+          last_claimed?: number
+          last_dead?: number
+          last_error?: string | null
+          last_finished_at?: string | null
+          last_recovered?: number
+          last_recovery_dead?: number
+          last_requeued?: number
+          last_retrying?: number
+          last_started_at?: string | null
+          last_succeeded?: number
+          last_success_at?: string | null
+          last_worker_id?: string | null
+          updated_at?: string
+          worker_name: string
+        }
+        Update: {
+          last_claimed?: number
+          last_dead?: number
+          last_error?: string | null
+          last_finished_at?: string | null
+          last_recovered?: number
+          last_recovery_dead?: number
+          last_requeued?: number
+          last_retrying?: number
+          last_started_at?: string | null
+          last_succeeded?: number
+          last_success_at?: string | null
+          last_worker_id?: string | null
+          updated_at?: string
+          worker_name?: string
+        }
+        Relationships: []
+      }
       calendar_item_notes: {
         Row: {
           created_at: string

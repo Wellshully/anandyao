@@ -1,4 +1,6 @@
-import { randomUUID } from "node:crypto";
+import {
+  randomUUID,
+} from "node:crypto";
 
 import {
   NextRequest,
@@ -13,6 +15,12 @@ import {
   runWorker,
 } from "@/lib/jobs/run-worker";
 
+import {
+  markWorkerFailed,
+  markWorkerStarted,
+  markWorkerSucceeded,
+} from "@/lib/jobs/worker-health";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -26,10 +34,6 @@ function isAuthorized(
     process.env.CRON_SECRET;
 
   if (!secret) {
-    console.error(
-      "CRON_SECRET is not configured.",
-    );
-
     return false;
   }
 
@@ -38,6 +42,59 @@ function isAuthorized(
       "authorization",
     ) === `Bearer ${secret}`
   );
+}
+
+async function recordWorkerStart(
+  workerId: string,
+) {
+  try {
+    await markWorkerStarted(
+      workerId,
+    );
+  } catch (cause) {
+    console.warn(
+      "Failed to record worker start:",
+      cause instanceof Error
+        ? cause.message
+        : String(cause),
+    );
+  }
+}
+
+async function recordWorkerSuccess({
+  workerId,
+  recovery,
+  worker,
+}: {
+  workerId: string;
+
+  recovery: {
+    recovered: number;
+    requeued: number;
+    dead: number;
+  };
+
+  worker: {
+    claimed: number;
+    succeeded: number;
+    retrying: number;
+    dead: number;
+  };
+}) {
+  try {
+    await markWorkerSucceeded({
+      workerId,
+      recovery,
+      worker,
+    });
+  } catch (cause) {
+    console.warn(
+      "Failed to record worker success:",
+      cause instanceof Error
+        ? cause.message
+        : String(cause),
+    );
+  }
 }
 
 export async function POST(
@@ -56,18 +113,16 @@ export async function POST(
   }
 
   const workerId =
-    [
-      "cron-worker",
+    `cron-worker:${
       process.env.VERCEL_REGION ??
-        "local",
-      randomUUID(),
-    ].join(":");
+      "local"
+    }:${randomUUID()}`;
+
+  await recordWorkerStart(
+    workerId,
+  );
 
   try {
-    /*
-     * First recover jobs whose previous worker
-     * stopped renewing its lease.
-     */
     const recovery =
       await recoverStaleJobs({
         staleForMs:
@@ -76,22 +131,40 @@ export async function POST(
         limit: 50,
       });
 
-    /*
-     * Claim conservatively.
-     *
-     * runWorker currently processes claimed
-     * jobs sequentially and starts heartbeat
-     * when each job begins execution.
-     *
-     * Claiming more than one here would leave
-     * later claimed jobs waiting without a
-     * heartbeat, so keep this at one.
-     */
     const worker =
       await runWorker({
         workerId,
         limit: 1,
       });
+
+    await recordWorkerSuccess({
+      workerId,
+
+      recovery: {
+        recovered:
+          recovery.recovered,
+
+        requeued:
+          recovery.requeued,
+
+        dead:
+          recovery.dead,
+      },
+
+      worker: {
+        claimed:
+          worker.claimed,
+
+        succeeded:
+          worker.succeeded,
+
+        retrying:
+          worker.retrying,
+
+        dead:
+          worker.dead,
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -110,14 +183,21 @@ export async function POST(
       worker,
     });
   } catch (cause) {
+    await markWorkerFailed({
+      workerId,
+      cause,
+    });
+
     console.error(
-      "[jobs] worker run failed:",
+      "Background worker failed:",
       cause,
     );
 
     return NextResponse.json(
       {
         success: false,
+
+        workerId,
 
         error:
           cause instanceof Error

@@ -5,6 +5,13 @@ import { requireUser } from "@/lib/auth/require-user";
 import { runNotificationReminders } from "@/features/notifications/lib/run-notification-reminders";
 
 export async function GET() {
+  if (process.env.NODE_ENV !== "development") {
+    return new Response("Not Found", {
+      status: 404,
+    });
+  }
+
+
   try {
     const user = await requireUser();
 

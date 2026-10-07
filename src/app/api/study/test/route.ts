@@ -8,6 +8,13 @@ import {
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
+  if (process.env.NODE_ENV !== "development") {
+    return new Response("Not Found", {
+      status: 404,
+    });
+  }
+
+
   const supabase = await createClient();
 
   const { data: authData, error: authError } = await supabase.auth.getUser();
