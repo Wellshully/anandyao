@@ -31,7 +31,9 @@ export async function applyPetRecurringScheduleAction(
     action.action === "cancel"
   ) {
     if (!action.scheduleId) {
-      return;
+      throw new Error(
+        "Recurring schedule cancel action requires scheduleId.",
+      );
     }
 
     const [
@@ -44,7 +46,10 @@ export async function applyPetRecurringScheduleAction(
       getPet(),
     ]);
 
-    const { error } =
+    const {
+      data,
+      error,
+    } =
       await supabase
         .from(
           "pet_recurring_schedules",
@@ -71,11 +76,19 @@ export async function applyPetRecurringScheduleAction(
         .eq(
           "status",
           "active",
-        );
+        )
+        .select("id")
+        .maybeSingle();
 
     if (error) {
       throw new Error(
         error.message,
+      );
+    }
+
+    if (!data) {
+      throw new Error(
+        `Recurring schedule not found or no longer active: ${action.scheduleId}`,
       );
     }
   }

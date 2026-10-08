@@ -19,6 +19,10 @@ import {
   type CalendarRecurringSchedule,
 } from "@/features/calendar/lib/expand-pet-recurring-schedule";
 
+import {
+  applyPetRecurringException,
+} from "@/features/calendar/lib/apply-pet-recurring-exception";
+
 type GetCalendarEventsInput = {
   /*
    * YYYY-MM-DD in Asia/Taipei.
@@ -422,6 +426,63 @@ export async function getCalendarEvents({
     );
   }
 
+  /*
+   * Load exceptions only for schedules
+   * visible to the current user.
+   */
+  const scheduleIds =
+    (recurringSchedulesResult.data ?? []).map(
+      (schedule) => schedule.id,
+    );
+
+  const exceptionsResult =
+    scheduleIds.length === 0
+      ? {
+          data: [],
+          error: null,
+        }
+      : await supabase
+          .from(
+            "pet_recurring_schedule_exceptions",
+          )
+          .select(`
+            schedule_id,
+            occurrence_date,
+            kind,
+            title_override,
+            time_precision_override,
+            start_time_override
+          `)
+          .in(
+            "schedule_id",
+            scheduleIds,
+          )
+          .gte(
+            "occurrence_date",
+            startDate,
+          )
+          .lte(
+            "occurrence_date",
+            endDate,
+          );
+
+  if (exceptionsResult.error) {
+    throw new Error(
+      `Failed to load recurring exceptions: ${
+        exceptionsResult.error.message
+      }`,
+    );
+  }
+
+  const exceptionsByKey = new Map(
+    (exceptionsResult.data ?? []).map(
+      (exception) => [
+        `${exception.schedule_id}:${exception.occurrence_date}`,
+        exception,
+      ] as const,
+    ),
+  );
+
   const events:
     CalendarEvent[] = [];
 
@@ -584,6 +645,26 @@ export async function getCalendarEvents({
       const occurrence of
         occurrences
     ) {
+      const exceptionKey =
+        `${schedule.id}:${occurrence.date}` as const;
+
+      const effectiveOccurrence =
+        applyPetRecurringException(
+          schedule,
+          occurrence,
+          exceptionsByKey.get(
+            exceptionKey,
+          ) ?? null,
+        );
+
+      /*
+       * A cancelled occurrence must not
+       * appear in Calendar.
+       */
+      if (!effectiveOccurrence) {
+        continue;
+      }
+
       events.push({
         /*
          * An occurrence needs its own stable
@@ -591,7 +672,7 @@ export async function getCalendarEvents({
          * pointing at the recurring definition.
          */
         id:
-          `pet_recurring_schedule:${schedule.id}:${occurrence.date}`,
+          `pet_recurring_schedule:${schedule.id}:${effectiveOccurrence.date}`,
 
         source:
           "pet_recurring_schedule",
@@ -600,26 +681,26 @@ export async function getCalendarEvents({
           schedule.id,
 
         title:
-          schedule.title,
+          effectiveOccurrence.title,
 
         startAt:
-          occurrence.startAt,
+          effectiveOccurrence.startAt,
 
         endAt:
-          occurrence.startAt,
+          effectiveOccurrence.startAt,
 
         startDate:
-          occurrence.allDay
-            ? occurrence.date
+          effectiveOccurrence.allDay
+            ? effectiveOccurrence.date
             : null,
 
         endDate:
-          occurrence.allDay
-            ? occurrence.date
+          effectiveOccurrence.allDay
+            ? effectiveOccurrence.date
             : null,
 
         allDay:
-          occurrence.allDay,
+          effectiveOccurrence.allDay,
 
         kind:
           "event",

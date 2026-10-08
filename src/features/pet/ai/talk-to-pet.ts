@@ -23,6 +23,13 @@ import {
 import { PET_PERSONA } from "@/features/pet/ai/pet-persona";
 
 import { petReplySchema, type PetReply } from "@/features/pet/ai/pet-reply";
+import {
+  getRecurringScheduleGroundingIssue,
+} from "@/features/pet/ai/get-recurring-schedule-grounding-issue";
+
+import {
+  shouldRetryRecurringOccurrence,
+} from "@/features/pet/ai/should-retry-recurring-occurrence";
 
 function getCurrentLocalTimeContext() {
   const now = new Date();
@@ -619,6 +626,7 @@ structured data 優先。
 1. 是否值得形成長期 memory
 2. 是否有單次 task 要 create / update / complete / cancel
 3. 是否有 recurring schedule 要 create / cancel
+4. 是否有 recurring occurrence 要 override / cancel / restore
 
 --------------------------------
 週期行程 recurringScheduleActions
@@ -746,6 +754,116 @@ taskActions = []
 
 則是單次 scheduled task，
 不是 recurring schedule。
+
+--------------------------------
+單次固定行程 recurringOccurrenceActions
+--------------------------------
+
+recurringOccurrenceActions 是真正會寫入資料庫的單次操作。
+
+如果沒有單次固定行程操作：
+recurringOccurrenceActions = []
+
+recurringSchedules.items 是原始固定規則。
+
+單次修改、取消或恢復，
+只能根據 structured app_context 中
+recurringSchedules.occurrences 的實際紀錄，
+使用該筆的 scheduleId 與 occurrenceDate。
+
+如果找不到唯一對應的 occurrence，
+或指定日期不在 Context 範圍內，
+不能自行計算後執行修改。
+
+應詢問主人或說明無法確認。
+
+禁止編造 scheduleId 或 occurrenceDate。
+
+action 有三種：
+- override：修改某一次
+- cancel：取消某一次
+- restore：移除某一次的例外，恢復原本規則
+
+每個 action 必須包含：
+- action
+- scheduleId
+- occurrenceDate
+- titleOverride
+- noteOverride
+- timePrecisionOverride
+- startTimeOverride
+
+occurrenceDate 必須是 YYYY-MM-DD。
+根據目前真實日期與 Asia/Taipei 時區解析。
+
+override：
+只有主人明確要求修改的欄位才填入新值。
+其他欄位填 null。
+
+如果只修改標題：
+titleOverride 填新標題，
+其餘 override 欄位填 null。
+
+如果修改到精確時間：
+timePrecisionOverride = "exact"
+startTimeOverride = "HH:mm"
+
+例如晚上七點：
+startTimeOverride = "19:00"
+
+如果只說下午、晚上而沒有具體鐘點，
+不能自行發明精確時間。
+
+cancel：
+四個 override 欄位全部為 null。
+
+restore：
+四個 override 欄位全部為 null。
+
+非常重要：
+
+「取消這週五的家教」
+是 recurringOccurrenceActions cancel。
+
+「這週五家教改成晚上七點」
+是 recurringOccurrenceActions override。
+
+這是修改固定行程在本週五的單次 occurrence，
+不是修改整個 recurring schedule。
+
+只要 recurringSchedules.occurrences
+存在唯一對應紀錄，
+就應產生 recurringOccurrenceActions.override。
+
+不能因為 Context 顯示單次 occurrence，
+就認為它不是固定行程。
+
+「恢復這週五原本的家教」
+是 recurringOccurrenceActions restore。
+
+「以後都不用家教了」
+才可能是 recurringScheduleActions cancel。
+
+「以後每週五都改成七點」
+不是單次修改。
+
+目前 recurringScheduleActions 不支援
+修改整個固定行程的時間或內容。
+
+遇到整個固定規則的修改要求，
+必須說明目前無法直接修改整個規則，
+不能擅自建立單次 override，
+也不能謊稱修改成功。
+
+如果無法唯一確定 scheduleId 或日期，
+recurringOccurrenceActions = []
+並詢問主人需要補充的資訊。
+
+不能從過去 Pet 自己的回答
+推論某次行程已經修改成功。
+
+單次固定行程操作不可另外建立
+內容重複的 taskActions。
 
 --------------------------------
 待辦 taskActions
@@ -1448,39 +1566,63 @@ memory 或 task
     schema: petReplySchema,
   });
 
+  const firstRecurringGroundingIssue =
+    getRecurringScheduleGroundingIssue(
+      normalized,
+      firstReply.recurringScheduleActions,
+    );
+
   const mutationIntent =
     taskQueryScope === "mutation" || looksLikeTaskMutation(normalized);
 
   const firstActionCount =
-    firstReply.taskActions.length + firstReply.recurringScheduleActions.length;
+    firstReply.taskActions.length +
+    firstReply.recurringScheduleActions.length +
+    firstReply.recurringOccurrenceActions.length;
+
+  const retryOccurrence = shouldRetryRecurringOccurrence({
+    message: normalized,
+    hasRecurringContext:
+      appContext.includes('"recurringSchedules"'),
+    actionCount: firstActionCount,
+  });
 
   /*
-   * No mutation intent:
-   * no special validation needed.
-   */
-  if (!mutationIntent) {
-    return firstReply;
-  }
-
-  /*
-   * Mutation with a real action:
-   * good.
-   */
-  if (firstActionCount > 0) {
-    return firstReply;
-  }
-
-  /*
-   * Ambiguous mutation is allowed to ask
-   * a clarification question.
+   * A grounded recurring response can use
+   * the normal mutation validation path.
    *
-   * The dangerous case is:
-   *
-   * actions=[]
-   * BUT reply says "改好了".
+   * An ungrounded recurring create must
+   * always go through the strict retry,
+   * even when the current message was not
+   * classified as a mutation.
    */
-  if (!replyClaimsMutationSuccess(firstReply.reply)) {
-    return firstReply;
+  if (!firstRecurringGroundingIssue) {
+    /*
+     * No mutation intent:
+     * no special validation needed.
+     */
+    if (!mutationIntent) {
+      return firstReply;
+    }
+
+    /*
+     * Mutation with a real action:
+     * good.
+     */
+    if (firstActionCount > 0) {
+      return firstReply;
+    }
+
+    /*
+     * Ambiguous mutation is allowed to ask
+     * a clarification question.
+     */
+    if (
+      !replyClaimsMutationSuccess(firstReply.reply) &&
+      !retryOccurrence
+    ) {
+      return firstReply;
+    }
   }
 
   /*
@@ -1503,6 +1645,69 @@ memory 或 task
     recurringScheduleActions: firstReply.recurringScheduleActions,
   });
 
+  const correctionReason =
+    firstRecurringGroundingIssue
+      ? `
+你上一個輸出包含一個 recurring schedule create，
+
+但 recurrenceExpression 並不是來自主人這一輪訊息。
+
+這是不允許的。
+
+建立 recurring schedule 時：
+
+- 週期資訊必須明確存在於主人目前這一輪訊息。
+- recurrenceExpression 必須保留這一輪訊息中的原始週期文字。
+- 不可以從最近對話或歷史資料繼承「每週、隔週、每兩週」等條件。
+- 「週五」不等於「每週五」。
+- 「下週二」不等於「每週二」。
+
+如果主人目前只描述某一次日期或星期，
+應使用單次 task，而不是 recurring schedule。
+`
+      : retryOccurrence
+        ? `
+主人要求修改或取消某一次固定行程。
+
+你上一個輸出沒有產生任何 executable action。
+
+請重新檢查 app_context 中的
+recurringSchedules.occurrences。
+
+其中每一筆 occurrence 都是固定行程
+在某個日期展開後的單次實例。
+
+「單次實例」不代表它不是固定行程。
+
+例如：
+
+「把這週五的測試家教改成晚上七點」
+
+如果 recurringSchedules.occurrences
+有對應的測試家教與本週五日期，
+
+應使用 recurringOccurrenceActions override：
+
+- scheduleId 使用該 occurrence 的真實 ID
+- occurrenceDate 使用該 occurrence 的日期
+- timePrecisionOverride = "exact"
+- startTimeOverride = "19:00"
+- 其他沒有修改的欄位為 null
+
+不能因此修改整個 recurring schedule，
+也不能建立重複的 task。
+
+如果找不到唯一對應 occurrence，
+請詢問主人，不要編造 ID 或日期。
+`
+        : `
+你上一個輸出宣稱資料修改已經成功，
+
+但你沒有產生任何 executable structured action。
+
+這是不允許的。
+`;
+
   const retryPrompt = `
 ${prompt}
 
@@ -1510,11 +1715,7 @@ ${prompt}
 SYSTEM CORRECTION
 ================================
 
-你上一個輸出宣稱資料修改已經成功，
-
-但你沒有產生任何 executable structured action。
-
-這是不允許的。
+${correctionReason}
 
 主人目前訊息：
 
@@ -1550,6 +1751,15 @@ action = "cancel"
 
 使用 recurringScheduleActions。
 
+如果主人只想修改、取消或恢復
+某一次固定行程：
+
+使用 recurringOccurrenceActions。
+
+必須有真實 scheduleId 和 occurrenceDate。
+
+沒有唯一目標時不能猜測。
+
 只有在 structured data
 找不到唯一目標時，
 
@@ -1583,8 +1793,36 @@ taskActions = []
     schema: petReplySchema,
   });
 
+  const retryRecurringGroundingIssue =
+    getRecurringScheduleGroundingIssue(
+      normalized,
+      retryReply.recurringScheduleActions,
+    );
+
+  if (
+    retryRecurringGroundingIssue
+  ) {
+    console.error(
+      "[Pet recurring schedule retry rejected]",
+      {
+        message: normalized,
+        issue:
+          retryRecurringGroundingIssue,
+        recurringScheduleActions:
+          retryReply
+            .recurringScheduleActions,
+      },
+    );
+
+    throw new Error(
+      retryRecurringGroundingIssue,
+    );
+  }
+
   const retryActionCount =
-    retryReply.taskActions.length + retryReply.recurringScheduleActions.length;
+    retryReply.taskActions.length +
+    retryReply.recurringScheduleActions.length +
+    retryReply.recurringOccurrenceActions.length;
 
   /*
    * Retry produced an executable action.

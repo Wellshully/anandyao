@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -1068,6 +1063,50 @@ export type Database = {
             columns: ["subject_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pet_recurring_schedule_exceptions: {
+        Row: {
+          created_at: string
+          kind: string
+          note_override: string | null
+          occurrence_date: string
+          schedule_id: string
+          start_time_override: string | null
+          time_precision_override: string | null
+          title_override: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          kind: string
+          note_override?: string | null
+          occurrence_date: string
+          schedule_id: string
+          start_time_override?: string | null
+          time_precision_override?: string | null
+          title_override?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          kind?: string
+          note_override?: string | null
+          occurrence_date?: string
+          schedule_id?: string
+          start_time_override?: string | null
+          time_precision_override?: string | null
+          title_override?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pet_recurring_schedule_exceptions_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "pet_recurring_schedules"
             referencedColumns: ["id"]
           },
         ]

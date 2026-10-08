@@ -18,6 +18,14 @@ import { applyPetTaskAction } from "@/features/pet/ai/apply-pet-task-action";
 
 import { applyPetRecurringScheduleAction } from "@/features/pet/ai/apply-pet-recurring-schedule-action";
 
+import {
+  applyPetRecurringOccurrenceAction,
+} from "@/features/pet/ai/apply-pet-recurring-occurrence-action";
+
+import {
+  assertRecurringCancellationScope,
+} from "@/features/pet/ai/assert-recurring-cancellation-scope";
+
 import { getPendingTaskQueryScope } from "@/features/pet/ai/context/intent";
 
 import type { PetReply } from "@/features/pet/ai/pet-reply";
@@ -199,7 +207,9 @@ export async function talkToPetAction(
       detectedScope === "mutation" || looksLikeTaskMutation(message);
 
     const executableActionCount =
-      reply.taskActions.length + reply.recurringScheduleActions.length;
+      reply.taskActions.length +
+      reply.recurringScheduleActions.length +
+      reply.recurringOccurrenceActions.length;
 
     if (
       mutationIntent &&
@@ -234,12 +244,89 @@ export async function talkToPetAction(
      * If DB mutation fails, the entire request
      * must return success:false.
      */
+    assertRecurringCancellationScope(
+      message,
+      reply.recurringScheduleActions,
+      reply.recurringOccurrenceActions,
+    );
+
     for (const taskAction of reply.taskActions) {
       await applyPetTaskAction(taskAction);
     }
 
     for (const recurringAction of reply.recurringScheduleActions) {
-      await applyPetRecurringScheduleAction(recurringAction);
+      if (
+        recurringAction.action === "create"
+      ) {
+        if (!recurringAction.schedule) {
+          throw new Error(
+            "Recurring schedule create action requires schedule data.",
+          );
+        }
+
+        const normalizedMessage =
+          message
+            .normalize("NFKC")
+            .replace(/\s+/g, "");
+
+        const normalizedExpression =
+          recurringAction.schedule
+            .recurrenceExpression
+            .normalize("NFKC")
+            .replace(/\s+/g, "");
+
+        /*
+         * A recurring schedule may only be created
+         * from recurrence wording explicitly present
+         * in the CURRENT user message.
+         *
+         * Never inherit recurrence from conversation
+         * history.
+         *
+         * Example:
+         *
+         * Previous:
+         *   每週二跟五要家教
+         *
+         * Current:
+         *   週五要在北車家教
+         *
+         * Must NOT create:
+         *   recurrenceExpression = 每週二跟五
+         */
+        if (
+          !normalizedMessage.includes(
+            normalizedExpression,
+          )
+        ) {
+          console.error(
+            "[Pet ungrounded recurring schedule blocked]",
+            {
+              message,
+              recurrenceExpression:
+                recurringAction.schedule
+                  .recurrenceExpression,
+            },
+          );
+
+          throw new Error(
+            "Recurring schedule expression is not grounded in the current user message.",
+          );
+        }
+      }
+
+      await applyPetRecurringScheduleAction(
+        recurringAction,
+      );
+    }
+
+    for (
+      const occurrenceAction of
+        reply.recurringOccurrenceActions
+    ) {
+      await applyPetRecurringOccurrenceAction(
+        occurrenceAction,
+      );
     }
 
     /*

@@ -2,6 +2,7 @@ import "server-only";
 import { getPetStudyContext } from "./providers/study";
 import { getPetDatesContext } from "./providers/dates";
 import { getPetPlacesContext } from "./providers/places";
+import { getPetRecurringSchedulesContext } from "./providers/recurring-schedules";
 import { selectContextSources } from "./select-context-sources";
 
 import type { PetAppContext } from "./types";
@@ -37,6 +38,10 @@ export async function buildAppContext({
         case "study":
           context.study = await getPetStudyContext();
           break;
+        case "recurringSchedules":
+          context.recurringSchedules =
+            await getPetRecurringSchedulesContext();
+          break;
       }
     }),
   );
@@ -65,6 +70,22 @@ export async function buildAppContext({
 - upcoming 的行程絕對不可描述成已經去過、剛回來、已經完成或已經發生。
 - past 的行程才可以描述成已經發生。
 - 如果最近對話中你自己先前說過的內容與 app_context 衝突，以 app_context 為準。
+
+Recurring schedules 規則：
+
+- recurringSchedules.items 是原始固定行程規則。
+- recurringSchedules.occurrences 是已套用 Exception 的實際單次行程。
+- occurrenceDate 是該次行程原本的日期。
+- status = active 表示該次行程有效。
+- status = cancelled 表示該次行程已取消，不應列入當日有效行程。
+- exceptionKind = override 表示該次行程曾修改。
+- localStartTime 是 recurringSchedules.timeZone 的當地時間。
+- localStartTime = null 表示沒有精確鐘點。
+- occurrences 只涵蓋 windowStartDate 至 windowEndDate。
+- truncated = true 表示清單不完整。
+- 清單中找不到某個日期，不代表資料庫中一定沒有該行程。
+- 單次操作只能使用 occurrences 中真實存在的 scheduleId 與 occurrenceDate。
+- 不要自行推測週期日期、編造 ID 或聲稱未執行的修改已經完成。
 
 Places 狀態規則：
 

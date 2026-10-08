@@ -50,6 +50,43 @@ const STUDY_KEYWORDS = [
   "homework",
 ];
 
+const RECURRING_SCHEDULE_KEYWORDS = [
+  "固定行程",
+  "固定",
+  "週期",
+  "例行",
+  "每週",
+  "每周",
+  "每星期",
+  "每禮拜",
+  "隔週",
+  "隔周",
+  "每兩週",
+  "每2週",
+
+  "週一",
+  "週二",
+  "週三",
+  "週四",
+  "週五",
+  "週六",
+  "週日",
+  "星期一",
+  "星期二",
+  "星期三",
+  "星期四",
+  "星期五",
+  "星期六",
+  "星期日",
+
+  "取消",
+  "不要了",
+  "不用了",
+  "改成",
+  "改到",
+  "改在",
+];
+
 const DAILY_PLAN_KEYWORDS = [
   "今天要幹嘛",
   "今天要幹麻",
@@ -85,6 +122,7 @@ export function selectContextSources(message: string): AppContextSource[] {
   if (containsAny(normalized, DAILY_PLAN_KEYWORDS)) {
     sources.add("dates");
     sources.add("study");
+    sources.add("recurringSchedules");
   }
 
   if (containsAny(normalized, PLACE_KEYWORDS)) {
@@ -99,6 +137,17 @@ export function selectContextSources(message: string): AppContextSource[] {
     sources.add("study");
   }
 
+  if (
+    containsAny(
+      normalized,
+      RECURRING_SCHEDULE_KEYWORDS,
+    )
+  ) {
+    sources.add(
+      "recurringSchedules",
+    );
+  }
+
   /*
    * 「約會去了哪裡」這類問題需要：
    *
@@ -110,6 +159,17 @@ export function selectContextSources(message: string): AppContextSource[] {
     containsAny(normalized, ["哪裡", "去哪", "地點", "地方"])
   ) {
     sources.add("places");
+  }
+
+  if (
+    /(?:今天|明天|後天|這週|本週|下週|週末|周末)/u.test(
+      normalized,
+    ) &&
+    /(?:行程|安排|有什麼事|要做什麼|要幹嘛)/u.test(
+      normalized,
+    )
+  ) {
+    sources.add("recurringSchedules");
   }
 
   return [...sources];
