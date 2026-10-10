@@ -6,6 +6,10 @@ import { saveDateRecap } from "@/features/dates/recap/lib/save-date-recap";
 
 import { completeDateRecap } from "@/features/dates/recap/lib/complete-date-recap";
 
+import {
+  deleteDateRecapPhoto,
+} from "@/features/dates/recap/lib/delete-date-recap-photo";
+
 type SaveRecapResult =
   | {
       success: true;
@@ -98,6 +102,33 @@ export async function completeDateRecapAction(
       success: false,
 
       error: cause instanceof Error ? cause.message : "完成回顧失敗。",
+    };
+  }
+}
+
+
+export async function deleteDateRecapPhotoAction(input: {
+  recapId: string;
+  mediaId: string;
+}): Promise<
+  | { success: true }
+  | { success: false; error: string }
+> {
+  try {
+    const result = await deleteDateRecapPhoto(input);
+
+    revalidatePath(`/dates/${result.dateId}/recap`);
+    revalidatePath(`/dates/${result.dateId}`);
+
+    return { success: true };
+  } catch (cause) {
+    console.error("deleteDateRecapPhotoAction:", cause);
+
+    return {
+      success: false,
+      error: cause instanceof Error
+        ? cause.message
+        : "刪除照片失敗。",
     };
   }
 }

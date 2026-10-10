@@ -2,7 +2,12 @@
 
 import Image from "next/image";
 
-import { useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -13,6 +18,14 @@ import { createMediaPath } from "@/lib/media/create-media-path";
 import { optimizeImage } from "@/features/memories/lib/optimize-image";
 
 import type { DateRecapPhoto } from "@/features/dates/recap/photo-types";
+
+import {
+  deleteDateRecapPhotoAction,
+} from "@/features/dates/recap/actions";
+
+import {
+  shouldOpenRecapPhotoMenuOnClick,
+} from "@/features/dates/recap/lib/should-open-photo-menu-on-click";
 
 type UploadState = {
   id: string;
@@ -46,6 +59,128 @@ export default function DateRecapPhotoUploader({
   const [uploads, setUploads] = useState<UploadState[]>([]);
 
   const [isUploading, setIsUploading] = useState(false);
+
+  const [selectedMediaId, setSelectedMediaId] =
+    useState<string | null>(null);
+
+  const [deletingMediaId, setDeletingMediaId] =
+    useState<string | null>(null);
+
+  const [photoError, setPhotoError] =
+    useState<string | null>(null);
+
+  const [hiddenMediaIds, setHiddenMediaIds] =
+    useState<string[]>([]);
+
+  const pressTimerRef = useRef<number | null>(null);
+
+  const lastPointerTypeRef = useRef<string | null>(null);
+
+  const pressStartRef = useRef<{
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const visiblePhotos = photos.filter(
+    (photo) => !hiddenMediaIds.includes(photo.mediaId),
+  );
+
+  function clearPressTimer() {
+    if (pressTimerRef.current !== null) {
+      window.clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+
+    pressStartRef.current = null;
+  }
+
+  useEffect(() => {
+    return () => {
+      if (pressTimerRef.current !== null) {
+        window.clearTimeout(pressTimerRef.current);
+      }
+    };
+  }, []);
+
+  function beginLongPress(
+    event: ReactPointerEvent<HTMLButtonElement>,
+    mediaId: string,
+  ) {
+    clearPressTimer();
+    lastPointerTypeRef.current = event.pointerType;
+
+    if (
+      isUploading ||
+      deletingMediaId !== null ||
+      !["touch", "pen"].includes(event.pointerType)
+    ) {
+      return;
+    }
+
+    pressStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+
+    pressTimerRef.current = window.setTimeout(() => {
+      setPhotoError(null);
+      setSelectedMediaId(mediaId);
+      pressTimerRef.current = null;
+    }, 550);
+  }
+
+  function trackLongPress(
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) {
+    const start = pressStartRef.current;
+
+    if (
+      start &&
+      Math.hypot(
+        event.clientX - start.x,
+        event.clientY - start.y,
+      ) > 12
+    ) {
+      clearPressTimer();
+    }
+  }
+
+  async function handleDeletePhoto(photo: DateRecapPhoto) {
+    if (deletingMediaId !== null || isUploading) {
+      return;
+    }
+
+    setDeletingMediaId(photo.mediaId);
+    setPhotoError(null);
+
+    try {
+      const result = await deleteDateRecapPhotoAction({
+        recapId,
+        mediaId: photo.mediaId,
+      });
+
+      if (!result.success) {
+        setPhotoError(result.error);
+        return;
+      }
+
+      setHiddenMediaIds((current) => [
+        ...current,
+        photo.mediaId,
+      ]);
+
+      setSelectedMediaId(null);
+      router.refresh();
+    } catch (cause) {
+      setPhotoError(
+        cause instanceof Error
+          ? cause.message
+          : "刪除照片失敗。",
+      );
+    } finally {
+      setDeletingMediaId(null);
+    }
+  }
 
   function updateUpload(id: string, patch: Partial<UploadState>) {
     setUploads((current) =>
@@ -261,6 +396,10 @@ export default function DateRecapPhotoUploader({
         </button>
       </div>
 
+      <p className="mt-3 text-xs text-[var(--muted)]">
+        手機長按照片，或在電腦上點擊照片，即可開啟刪除選單。
+      </p>
+
       <input
         ref={inputRef}
         type="file"
@@ -282,7 +421,7 @@ export default function DateRecapPhotoUploader({
         className="hidden"
       />
 
-      {photos.length > 0 && (
+      {visiblePhotos.length > 0 && (
         <div
           className="
             mt-6
@@ -292,33 +431,94 @@ export default function DateRecapPhotoUploader({
             sm:grid-cols-3
           "
         >
-          {photos.map((photo) => (
+          {visiblePhotos.map((photo) => (
             <div
               key={photo.mediaId}
-              className="
-                  relative
-                  aspect-square
-                  overflow-hidden
-                  rounded-[var(--radius-md)]
-                  bg-[var(--surface-soft)]
-                "
+              className="relative aspect-square overflow-hidden rounded-[var(--radius-md)] bg-[var(--surface-soft)]"
             >
-              {photo.signedUrl && (
-                <Image
-                  src={photo.signedUrl}
-                  alt=""
-                  fill
-                  unoptimized
-                  sizes="
-    (max-width: 640px) 50vw,
-    220px
-  "
-                  className="object-cover"
-                />
+              <button
+                type="button"
+                aria-label={`管理照片：${photo.fileName}，可長按或按右鍵`}
+                className="absolute inset-0 block h-full w-full touch-manipulation select-none"
+                onPointerDown={(event) =>
+                  beginLongPress(event, photo.mediaId)
+                }
+                onPointerMove={trackLongPress}
+                onPointerUp={clearPressTimer}
+                onPointerCancel={clearPressTimer}
+                onPointerLeave={clearPressTimer}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  clearPressTimer();
+                  setPhotoError(null);
+                  setSelectedMediaId(photo.mediaId);
+                }}
+                onClick={(event) => {
+                  if (
+                    !isUploading &&
+                    deletingMediaId === null &&
+                    shouldOpenRecapPhotoMenuOnClick(
+                      event.detail,
+                      lastPointerTypeRef.current,
+                    )
+                  ) {
+                    setPhotoError(null);
+                    setSelectedMediaId(photo.mediaId);
+                  }
+                }}
+              >
+                {photo.signedUrl && (
+                  <Image
+                    src={photo.signedUrl}
+                    alt={photo.fileName}
+                    fill
+                    unoptimized
+                    draggable={false}
+                    sizes="(max-width: 640px) 50vw, 220px"
+                    className="pointer-events-none select-none object-cover"
+                  />
+                )}
+              </button>
+
+              {selectedMediaId === photo.mediaId && (
+                <div className="absolute inset-0 z-10 flex flex-col justify-end gap-2 bg-black/70 p-3 text-white">
+                  <p className="text-center text-xs">
+                    要刪除這張照片嗎？
+                  </p>
+
+                  <button
+                    type="button"
+                    disabled={deletingMediaId !== null || isUploading}
+                    onClick={() => void handleDeletePhoto(photo)}
+                    className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"
+                  >
+                    {deletingMediaId === photo.mediaId
+                      ? "正在刪除…"
+                      : "刪除照片"}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={deletingMediaId !== null}
+                    onClick={() => {
+                      setSelectedMediaId(null);
+                      setPhotoError(null);
+                    }}
+                    className="rounded-lg border border-white/60 px-3 py-2 text-sm"
+                  >
+                    取消
+                  </button>
+                </div>
               )}
             </div>
           ))}
         </div>
+      )}
+
+      {photoError && (
+        <p role="alert" className="mt-3 text-sm text-[var(--danger)]">
+          {photoError}
+        </p>
       )}
 
       {uploads.length > 0 && (

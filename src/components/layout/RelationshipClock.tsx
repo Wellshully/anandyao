@@ -22,6 +22,10 @@ import {
 
 import type { TodayItem } from "@/features/today/types";
 
+import {
+  OPEN_PERSONAL_PANEL_EVENT,
+} from "@/features/today/lib/personal-panel-navigation";
+
 type RelationshipClockProps = {
   items: TodayItem[];
 };
@@ -141,11 +145,69 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
 
   const [isOpen, setIsOpen] = useState(false);
 
+  const [selectedPlanId, setSelectedPlanId] =
+    useState<string | null>(null);
+
   const [showAddForm, setShowAddForm] = useState(false);
 
   const [error, setError] = useState("");
 
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    function handleOpenPersonalPanel(event: Event) {
+      const detail = (
+        event as CustomEvent<{ planId: string | null }>
+      ).detail;
+
+      setSelectedPlanId(
+        typeof detail?.planId === "string"
+          ? detail.planId
+          : null,
+      );
+
+      setShowAddForm(false);
+      setIsOpen(true);
+    }
+
+    window.addEventListener(
+      OPEN_PERSONAL_PANEL_EVENT,
+      handleOpenPersonalPanel,
+    );
+
+    return () => {
+      window.removeEventListener(
+        OPEN_PERSONAL_PANEL_EVENT,
+        handleOpenPersonalPanel,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || !selectedPlanId) {
+      return;
+    }
+
+    const target = Array.from(
+      containerRef.current?.querySelectorAll<HTMLElement>(
+        "[data-personal-plan-id]",
+      ) ?? [],
+    ).find(
+      (element) =>
+        element.dataset.personalPlanId === selectedPlanId,
+    );
+
+    if (!target) {
+      return;
+    }
+
+    target.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
+
+    target.focus({ preventScroll: true });
+  }, [isOpen, selectedPlanId, items]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -649,7 +711,29 @@ export default function RelationshipClock({ items }: RelationshipClockProps) {
                     );
                   }
 
-                  return <div key={`${item.kind}-${item.id}`}>{content}</div>;
+                  return (
+                    <div
+                      key={`${item.kind}-${item.id}`}
+                      data-personal-plan-id={
+                        item.kind === "personal"
+                          ? item.id
+                          : undefined
+                      }
+                      tabIndex={
+                        item.kind === "personal"
+                          ? -1
+                          : undefined
+                      }
+                      className={
+                        item.kind === "personal" &&
+                        item.id === selectedPlanId
+                          ? "rounded-xl bg-[var(--accent-soft)] outline outline-2 outline-[var(--accent)]"
+                          : ""
+                      }
+                    >
+                      {content}
+                    </div>
+                  );
                 })}
               </div>
             )}

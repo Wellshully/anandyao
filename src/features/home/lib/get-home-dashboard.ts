@@ -15,14 +15,18 @@ import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 import { getTaipeiDateKey } from "@/lib/time/taipei-time";
 
+import {
+  isHomeAttentionDeadline,
+  getHomePetTaskDeadline,
+} from "@/features/home/lib/home-attention-deadline";
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type HomeUrgentItem = {
   id: string;
   kind:
-    | "date_invitation"
-    | "study_overdue"
-    | "pet_task_overdue";
+    | "study_due_soon"
+    | "pet_task_due_soon";
   title: string;
   subtitle: string;
   href: string;
@@ -652,78 +656,62 @@ export async function getHomeDashboard(): Promise<HomeDashboard> {
       ) === today,
   );
 
-  const overduePetTasks = petTasks
-    .filter(
-      (task) =>
-        task.dueAt !== null &&
-        Date.parse(task.dueAt) < now,
-    )
-    .slice(0, 3);
-
+  /*
+   * Attention: upcoming deadlines only.
+   * Exclude overdue and completed items.
+   * Study overdue counts remain available
+   * to the existing Study section.
+   */
   const urgent: HomeUrgentItem[] = [];
 
-  const invitation = dates.find(
-    (item) =>
-      item.currentUserParticipant?.role ===
-        "invitee" &&
-      item.currentUserParticipant.status ===
-        "pending",
-  );
-
-  if (invitation) {
-    const organizer =
-      invitation.participants.find(
-        (participant) =>
-          participant.role === "organizer",
-      );
-
-    urgent.push({
-      id: `date:${invitation.date.id}`,
-      kind: "date_invitation",
-      title: invitation.date.title,
-      subtitle:
-        `${organizer?.displayName ?? "對方"} 邀請你 · ` +
-        invitation.date.start_date,
-      href: `/dates/${invitation.date.id}`,
-      timestamp: null,
-    });
-  }
-
-  for (
-    const assignment of
-    overdueStudyResult.data ?? []
-  ) {
-    if (!assignment.due_at) {
+  for (const assignment of studyAssignments) {
+    if (
+      !isHomeAttentionDeadline(
+        assignment.startAt,
+        now,
+        assignment.completed,
+      )
+    ) {
       continue;
     }
 
     urgent.push({
       id: `study:${assignment.id}`,
-      kind: "study_overdue",
+      kind: "study_due_soon",
       title: assignment.title,
-      subtitle:
-        assignment.course_name ??
-        "NTU COOL",
+      subtitle: assignment.subtitle ?? "NTU COOL",
       href:
+        assignment.href ??
         `/study/assignments/${assignment.id}`,
-      timestamp: Date.parse(
-        assignment.due_at,
-      ),
+      timestamp: assignment.startAt,
     });
   }
 
-  for (const task of overduePetTasks) {
+  for (const task of petTasks) {
+    const deadlineAt = getHomePetTaskDeadline(
+      task.dueAt,
+      task.dueHasTime,
+    );
+
+    if (!isHomeAttentionDeadline(deadlineAt, now)) {
+      continue;
+    }
+
     urgent.push({
       id: `pet:${task.id}`,
-      kind: "pet_task_overdue",
+      kind: "pet_task_due_soon",
       title: task.title,
       subtitle: "萌蛋幫你記住的待辦",
-      href: "/pet",
-      timestamp: task.dueAt
-        ? Date.parse(task.dueAt)
-        : null,
+      href: "/calendar",
+      timestamp: deadlineAt,
     });
   }
+
+  urgent.sort(
+    (a, b) =>
+      (a.timestamp ?? Infinity) -
+      (b.timestamp ?? Infinity),
+  );
 
   const nextDateItem =
     dates

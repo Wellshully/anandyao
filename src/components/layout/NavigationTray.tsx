@@ -15,6 +15,19 @@ export default function NavigationTray() {
 
   const [isOpen, setIsOpen] = useState(false);
 
+  // Keep the existing navigation order and add
+  // System as the final item in the top menu.
+  const baseNavigationItems = siteConfig.navigation.slice(1);
+
+  const navigationItems = baseNavigationItems.some(
+    (item) => String(item.href) === "/system",
+  )
+    ? baseNavigationItems
+    : [
+        ...baseNavigationItems,
+        { href: "/system", label: "System" },
+      ];
+
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -115,7 +128,7 @@ export default function NavigationTray() {
           </div>
 
           <nav className="grid grid-cols-2 gap-px bg-[var(--border)]">
-            {siteConfig.navigation.slice(1).map((item) => {
+            {navigationItems.map((item) => {
               const isActive =
                 pathname === item.href ||
                 (item.href !== "/" && pathname.startsWith(`${item.href}/`));

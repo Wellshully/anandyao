@@ -1,6 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import HomeNextUpAction from "@/features/home/components/HomeNextUpAction";
+
+import {
+  getHomeNextUpHref,
+  getHomeNextUpActionLabel,
+} from "@/features/home/lib/home-next-up-navigation";
+
+import { getHomePendingDateRecaps } from "@/features/home/lib/get-home-pending-date-recaps";
+
 import AppShell from "@/components/layout/AppShell";
 
 import {
@@ -37,10 +46,7 @@ const quickLinks = [
   },
 ] as const;
 
-const itemKindLabels: Record<
-  HomeScheduleItem["kind"],
-  string
-> = {
+const itemKindLabels: Record<HomeScheduleItem["kind"], string> = {
   date: "Date",
   personal: "Personal",
   study: "Study",
@@ -49,10 +55,7 @@ const itemKindLabels: Record<
   pet_recurring_schedule: "固定行程",
 };
 
-const dateKindLabels: Record<
-  string,
-  string
-> = {
+const dateKindLabels: Record<string, string> = {
   meal: "一起吃飯",
   date: "約會",
   half_day: "半日約會",
@@ -62,14 +65,11 @@ const dateKindLabels: Record<
 
 function getGreeting(now: number) {
   const hour = Number(
-    new Intl.DateTimeFormat(
-      "en-US",
-      {
-        timeZone: TIME_ZONE,
-        hour: "2-digit",
-        hourCycle: "h23",
-      },
-    ).format(new Date(now)),
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: TIME_ZONE,
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).format(new Date(now)),
   );
 
   if (hour < 12) {
@@ -84,84 +84,53 @@ function getGreeting(now: number) {
 }
 
 function formatToday(now: number) {
-  return new Intl.DateTimeFormat(
-    "zh-TW",
-    {
-      timeZone: TIME_ZONE,
-      month: "long",
-      day: "numeric",
-      weekday: "long",
-    },
-  ).format(new Date(now));
+  return new Intl.DateTimeFormat("zh-TW", {
+    timeZone: TIME_ZONE,
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(new Date(now));
 }
 
-function formatTime(
-  timestamp: number,
-) {
-  return new Intl.DateTimeFormat(
-    "zh-TW",
-    {
-      timeZone: TIME_ZONE,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    },
-  ).format(new Date(timestamp));
+function formatTime(timestamp: number) {
+  return new Intl.DateTimeFormat("zh-TW", {
+    timeZone: TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(timestamp));
 }
 
-function formatDate(
-  value: string,
-) {
-  return new Intl.DateTimeFormat(
-    "zh-TW",
-    {
-      timeZone: TIME_ZONE,
-      month: "long",
-      day: "numeric",
-      weekday: "short",
-    },
-  ).format(
-    new Date(
-      `${value}T00:00:00+08:00`,
-    ),
-  );
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("zh-TW", {
+    timeZone: TIME_ZONE,
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  }).format(new Date(`${value}T00:00:00+08:00`));
 }
 
-function formatDateTime(
-  timestamp: number,
-) {
-  return new Intl.DateTimeFormat(
-    "zh-TW",
-    {
-      timeZone: TIME_ZONE,
-      month: "numeric",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    },
-  ).format(new Date(timestamp));
+function formatDateTime(timestamp: number) {
+  return new Intl.DateTimeFormat("zh-TW", {
+    timeZone: TIME_ZONE,
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(timestamp));
 }
 
-function getItemTime(
-  item: HomeScheduleItem,
-) {
+function getItemTime(item: HomeScheduleItem) {
   if (item.startAt === null) {
     return "今天";
   }
 
-  if (
-    item.timing ===
-    "deadline"
-  ) {
-    return `截止 ${formatTime(
-      item.startAt,
-    )}`;
+  if (item.timing === "deadline") {
+    return `截止 ${formatTime(item.startAt)}`;
   }
 
-  return formatTime(
-    item.startAt,
-  );
+  return formatTime(item.startAt);
 }
 
 function SectionHeader({
@@ -187,15 +156,14 @@ function SectionHeader({
         </h2>
       </div>
 
-      {actionHref &&
-        actionLabel && (
-          <Link
-            href={actionHref}
-            className="shrink-0 text-xs font-medium text-[var(--accent)] sm:text-sm"
-          >
-            {actionLabel} →
-          </Link>
-        )}
+      {actionHref && actionLabel && (
+        <Link
+          href={actionHref}
+          className="shrink-0 text-xs font-medium text-[var(--accent)] sm:text-sm"
+        >
+          {actionLabel} →
+        </Link>
+      )}
     </div>
   );
 }
@@ -207,22 +175,15 @@ function NextUpCard({
   item: HomeScheduleItem | null;
   untimedItems: HomeScheduleItem[];
 }) {
-  const compactItems =
-    untimedItems.slice(
-      0,
-      5,
-    );
+  const compactItems = untimedItems.slice(0, 5);
 
-  const remainingCount =
-    Math.max(
-      0,
-      untimedItems.length -
-        compactItems.length,
-    );
+  const remainingCount = Math.max(0, untimedItems.length - compactItems.length);
 
   return (
-    <Link
-      href="/calendar"
+    <HomeNextUpAction
+      kind={item?.kind ?? null}
+      itemId={item?.id ?? null}
+      href={getHomeNextUpHref(item)}
       className="
         group
         mt-6
@@ -262,9 +223,7 @@ function NextUpCard({
             {item ? (
               <>
                 <p className="text-sm font-medium text-[var(--accent)]">
-                  {getItemTime(
-                    item,
-                  )}
+                  {getItemTime(item)}
                 </p>
 
                 <h2 className="font-story mt-2 text-3xl font-semibold sm:text-4xl">
@@ -273,34 +232,26 @@ function NextUpCard({
 
                 {item.subtitle && (
                   <p className="mt-3 text-sm text-[var(--muted)]">
-                    {
-                      item.subtitle
-                    }
+                    {item.subtitle}
                   </p>
                 )}
 
                 <div className="mt-7">
                   <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs text-[var(--accent)]">
-                    {
-                      itemKindLabels[
-                        item.kind
-                      ]
-                    }
+                    {itemKindLabels[item.kind]}
                   </span>
                 </div>
               </>
             ) : (
               <>
                 <h2 className="font-story text-3xl font-semibold sm:text-4xl">
-                  {untimedItems.length >
-                  0
+                  {untimedItems.length > 0
                     ? "今天沒有下一個定時行程"
                     : "今天暫時沒有下一件事"}
                 </h2>
 
                 <p className="mt-3 text-sm text-[var(--muted)]">
-                  {untimedItems.length >
-                  0
+                  {untimedItems.length > 0
                     ? "今天還有一些沒有指定時間的事項。"
                     : "有空可以慢慢來。"}
                 </p>
@@ -308,8 +259,7 @@ function NextUpCard({
             )}
           </div>
 
-          {untimedItems.length >
-            0 && (
+          {untimedItems.length > 0 && (
             <aside
               className="
                 border-t
@@ -326,40 +276,22 @@ function NextUpCard({
               </p>
 
               <div className="mt-3 space-y-2">
-                {compactItems.map(
-                  (
-                    compactItem,
-                  ) => (
-                    <p
-                      key={
-                        compactItem.id
-                      }
-                      className="text-[11px] leading-5 text-[var(--muted)]"
-                    >
-                      <span className="font-medium text-[var(--foreground)]">
-                        {
-                          itemKindLabels[
-                            compactItem
-                              .kind
-                          ]
-                        }
-                      </span>
-                      {" · "}
-                      {
-                        compactItem.title
-                      }
-                    </p>
-                  ),
-                )}
+                {compactItems.map((compactItem) => (
+                  <p
+                    key={compactItem.id}
+                    className="text-[11px] leading-5 text-[var(--muted)]"
+                  >
+                    <span className="font-medium text-[var(--foreground)]">
+                      {itemKindLabels[compactItem.kind]}
+                    </span>
+                    {" · "}
+                    {compactItem.title}
+                  </p>
+                ))}
 
-                {remainingCount >
-                  0 && (
+                {remainingCount > 0 && (
                   <p className="text-[10px] text-[var(--muted)]">
-                    還有{" "}
-                    {
-                      remainingCount
-                    }{" "}
-                    件
+                    還有 {remainingCount} 件
                   </p>
                 )}
               </div>
@@ -368,40 +300,18 @@ function NextUpCard({
         </div>
 
         <p className="mt-8 text-xs font-medium text-[var(--accent)]">
-          打開 Calendar
+          {getHomeNextUpActionLabel(item)}
         </p>
       </div>
-    </Link>
+    </HomeNextUpAction>
   );
 }
 
-function UrgentRow({
-  item,
-}: {
-  item: HomeUrgentItem;
-}) {
-  let label = "提醒";
-
-  if (
-    item.kind ===
-    "date_invitation"
-  ) {
-    label = "Date 邀請";
-  }
-
-  if (
-    item.kind ===
-    "study_overdue"
-  ) {
-    label = "作業逾期";
-  }
-
-  if (
-    item.kind ===
-    "pet_task_overdue"
-  ) {
-    label = "待辦逾期";
-  }
+function UrgentRow({ item }: { item: HomeUrgentItem }) {
+  const label =
+    item.kind === "study_due_soon"
+      ? "作業即將截止"
+      : "待辦即將截止";
 
   return (
     <Link
@@ -426,38 +336,25 @@ function UrgentRow({
           {label}
         </p>
 
-        <p className="mt-1 text-sm font-medium">
-          {item.title}
-        </p>
+        <p className="mt-1 text-sm font-medium">{item.title}</p>
 
-        <p className="mt-1 text-xs text-[var(--muted)]">
-          {item.subtitle}
-        </p>
+        <p className="mt-1 text-xs text-[var(--muted)]">{item.subtitle}</p>
 
         {item.timestamp !== null && (
           <p className="mt-1 text-xs text-[var(--muted)]">
-            {formatDateTime(
-              item.timestamp,
-            )}
+            {formatDateTime(item.timestamp)}
           </p>
         )}
       </div>
 
-      <span
-        aria-hidden="true"
-        className="shrink-0 text-sm text-[var(--muted)]"
-      >
+      <span aria-hidden="true" className="shrink-0 text-sm text-[var(--muted)]">
         →
       </span>
     </Link>
   );
 }
 
-function StudyRow({
-  item,
-}: {
-  item: TodayItem;
-}) {
+function StudyRow({ item }: { item: TodayItem }) {
   const content = (
     <div
       className="
@@ -473,30 +370,20 @@ function StudyRow({
       "
     >
       <div className="min-w-0">
-        <p className="text-sm font-medium">
-          {item.title}
-        </p>
+        <p className="text-sm font-medium">{item.title}</p>
 
         {item.subtitle && (
-          <p className="mt-1 text-xs text-[var(--muted)]">
-            {item.subtitle}
-          </p>
+          <p className="mt-1 text-xs text-[var(--muted)]">{item.subtitle}</p>
         )}
 
         {item.startAt !== null && (
           <p className="mt-1 text-xs text-[var(--accent)]">
-            {formatDateTime(
-              item.startAt,
-            )}
+            {formatDateTime(item.startAt)}
           </p>
         )}
       </div>
 
-      {item.href && (
-        <span className="text-xs text-[var(--muted)]">
-          →
-        </span>
-      )}
+      {item.href && <span className="text-xs text-[var(--muted)]">→</span>}
     </div>
   );
 
@@ -504,28 +391,17 @@ function StudyRow({
     return content;
   }
 
-  return (
-    <Link href={item.href}>
-      {content}
-    </Link>
-  );
+  return <Link href={item.href}>{content}</Link>;
 }
 
-function DateCard({
-  date,
-}: {
-  date: HomeDateSummary | null;
-}) {
+function DateCard({ date }: { date: HomeDateSummary | null }) {
   if (!date) {
     return (
       <div className="mt-6">
-        <h3 className="font-story text-2xl font-semibold">
-          下一次要去哪？
-        </h3>
+        <h3 className="font-story text-2xl font-semibold">下一次要去哪？</h3>
 
         <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-          現在還沒有下一個已確認的
-          Date。
+          現在還沒有下一個已確認的 Date。
         </p>
 
         <Link
@@ -539,14 +415,9 @@ function DateCard({
   }
 
   return (
-    <Link
-      href={`/dates/${date.id}`}
-      className="group mt-6 block"
-    >
+    <Link href={`/dates/${date.id}`} className="group mt-6 block">
       <p className="text-xs text-[var(--accent)]">
-        {dateKindLabels[
-          date.kind
-        ] ?? date.kind}
+        {dateKindLabels[date.kind] ?? date.kind}
       </p>
 
       <h3 className="font-story mt-2 text-2xl font-semibold sm:text-3xl">
@@ -554,15 +425,9 @@ function DateCard({
       </h3>
 
       <p className="mt-3 text-sm text-[var(--muted)]">
-        {formatDate(
-          date.startDate,
-        )}
+        {formatDate(date.startDate)}
 
-        {date.endDate !==
-          date.startDate &&
-          ` – ${formatDate(
-            date.endDate,
-          )}`}
+        {date.endDate !== date.startDate && ` – ${formatDate(date.endDate)}`}
       </p>
 
       {date.description && (
@@ -579,8 +444,10 @@ function DateCard({
 }
 
 export default async function NormalHome() {
-  const dashboard =
-    await getHomeDashboard();
+  const [dashboard, pendingDateRecaps] = await Promise.all([
+    getHomeDashboard(),
+    getHomePendingDateRecaps(),
+  ]);
 
   return (
     <AppShell>
@@ -596,17 +463,57 @@ export default async function NormalHome() {
             An & Yao
           </h1>
 
-          <p className="mt-3 text-sm text-[var(--muted)]">
-            給安的生日禮物。
-          </p>
+          <p className="mt-3 text-sm text-[var(--muted)]">給安的生日禮物。</p>
 
           <p className="mt-5 text-xs text-[var(--muted)]">
             {formatToday(dashboard.now)}
             {" · "}
-            {getGreeting(dashboard.now)}
-            ，{dashboard.profile.displayName}
+            {getGreeting(dashboard.now)}，{dashboard.profile.displayName}
           </p>
         </header>
+
+        {/* Date recap reminder */}
+
+        {pendingDateRecaps.length > 0 ? (
+          <section
+            aria-label="等待完成的約會回憶"
+            className="mb-10 rounded-[var(--radius-lg)] border border-[var(--accent)] bg-[var(--surface)] p-5 sm:p-7"
+          >
+            <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--accent)]">
+              Our memories
+            </p>
+
+            <h2 className="font-story mt-2 text-2xl font-semibold sm:text-3xl">
+              約會回憶
+            </h2>
+
+            <p className="mt-2 text-sm text-[var(--muted)]">放些照片打些字。</p>
+
+            <div className="mt-5 space-y-3">
+              {pendingDateRecaps.map((recap) => (
+                <Link
+                  key={recap.id}
+                  href={`/dates/${recap.id}/recap`}
+                  className="flex items-center justify-between gap-4 rounded-xl border border-[var(--border)] px-4 py-4 transition hover:border-[var(--foreground)]"
+                >
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold">
+                      {recap.title}
+                    </p>
+
+                    <p className="mt-1 text-xs text-[var(--muted)]">
+                      期限：{recap.deadline}
+                    </p>
+                  </div>
+
+                  <span className="shrink-0 text-xs font-medium text-[var(--accent)]">
+                    留下回憶 →
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {/* Next Up */}
 
@@ -619,34 +526,21 @@ export default async function NormalHome() {
           />
 
           <NextUpCard
-            item={
-              dashboard.nextUp
-            }
-            untimedItems={
-              dashboard.todayUntimed
-            }
+            item={dashboard.nextUp}
+            untimedItems={dashboard.todayUntimed}
           />
         </section>
 
         {/* Attention */}
 
-        {dashboard.urgent.length >
-          0 && (
+        {dashboard.urgent.length > 0 && (
           <section className="mt-14">
-            <SectionHeader
-              eyebrow="Attention"
-              title="需要注意"
-            />
+            <SectionHeader eyebrow="Attention" title="三天內截止" />
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {dashboard.urgent.map(
-                (item) => (
-                  <UrgentRow
-                    key={item.id}
-                    item={item}
-                  />
-                ),
-              )}
+              {dashboard.urgent.map((item) => (
+                <UrgentRow key={item.id} item={item} />
+              ))}
             </div>
           </section>
         )}
@@ -662,11 +556,7 @@ export default async function NormalHome() {
               actionLabel="所有 Dates"
             />
 
-            <DateCard
-              date={
-                dashboard.nextDate
-              }
-            />
+            <DateCard date={dashboard.nextDate} />
           </div>
 
           <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-7">
@@ -678,9 +568,7 @@ export default async function NormalHome() {
             />
 
             <div className="mt-5">
-              {dashboard.study
-                .overdueCount >
-                0 && (
+              {dashboard.study.overdueCount > 0 && (
                 <Link
                   href="/study"
                   className="
@@ -695,56 +583,26 @@ export default async function NormalHome() {
                     text-[var(--accent)]
                   "
                 >
-                  {
-                    dashboard.study
-                      .overdueCount
-                  }{" "}
-                  件作業已超過期限
+                  {dashboard.study.overdueCount} 件作業已超過期限
                 </Link>
               )}
 
-              {dashboard.study.assignments
-                .slice(0, 3)
-                .map((item) => (
-                  <StudyRow
-                    key={item.id}
-                    item={item}
-                  />
-                ))}
+              {dashboard.study.assignments.slice(0, 3).map((item) => (
+                <StudyRow key={item.id} item={item} />
+              ))}
 
-              {dashboard.study
-                .announcement && (
-                <StudyRow
-                  item={
-                    dashboard.study
-                      .announcement
-                  }
-                />
+              {dashboard.study.announcement && (
+                <StudyRow item={dashboard.study.announcement} />
               )}
 
-              {dashboard.study
-                .mail && (
-                <StudyRow
-                  item={
-                    dashboard.study
-                      .mail
-                  }
-                />
-              )}
+              {dashboard.study.mail && <StudyRow item={dashboard.study.mail} />}
 
-              {dashboard.study
-                .assignments.length ===
-                0 &&
-                dashboard.study
-                  .overdueCount ===
-                  0 &&
-                !dashboard.study
-                  .announcement &&
-                !dashboard.study
-                  .mail && (
+              {dashboard.study.assignments.length === 0 &&
+                dashboard.study.overdueCount === 0 &&
+                !dashboard.study.announcement &&
+                !dashboard.study.mail && (
                   <p className="py-8 text-sm text-[var(--muted)]">
-                    最近沒有需要注意的
-                    Study 項目。
+                    最近沒有需要注意的 Study 項目。
                   </p>
                 )}
             </div>
@@ -754,10 +612,7 @@ export default async function NormalHome() {
         {/* Pet */}
 
         <section className="mt-14 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)]">
-          <Link
-            href="/pet"
-            className="group grid sm:grid-cols-[1fr_14rem]"
-          >
+          <Link href="/pet" className="group grid sm:grid-cols-[1fr_14rem]">
             <div className="p-6 sm:p-8">
               <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">
                 Pet
@@ -768,8 +623,8 @@ export default async function NormalHome() {
               </h2>
 
               <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--muted)]">
-                陪你聊天、記住重要的事情，也能幫你管理自己的待辦。
-                萌蛋還會整理 Date、Study 和近期事項，每天提供一份簡短的生活報告。
+                陪你聊天、記住重要的事情，也能幫你管理自己的待辦。 萌蛋還會整理
+                Date、Study 和近期事項，每天提供一份簡短的生活報告。
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2">
@@ -806,18 +661,14 @@ export default async function NormalHome() {
         {/* Quick access */}
 
         <section className="mt-14">
-          <SectionHeader
-            eyebrow="Quick access"
-            title="其他地方"
-          />
+          <SectionHeader eyebrow="Quick access" title="其他地方" />
 
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {quickLinks.map(
-              (item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="
+            {quickLinks.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="
                     group
                     rounded-2xl
                     border
@@ -828,37 +679,30 @@ export default async function NormalHome() {
                     hover:-translate-y-0.5
                     hover:border-[var(--foreground)]
                   "
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-story text-lg font-semibold">
-                      {
-                        item.title
-                      }
-                    </p>
-
-                    <span
-                      aria-hidden="true"
-                      className="text-xs text-[var(--muted)] transition-transform group-hover:translate-x-1"
-                    >
-                      →
-                    </span>
-                  </div>
-
-                  <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
-                    {
-                      item.description
-                    }
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-story text-lg font-semibold">
+                    {item.title}
                   </p>
-                </Link>
-              ),
-            )}
+
+                  <span
+                    aria-hidden="true"
+                    className="text-xs text-[var(--muted)] transition-transform group-hover:translate-x-1"
+                  >
+                    →
+                  </span>
+                </div>
+
+                <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
+                  {item.description}
+                </p>
+              </Link>
+            ))}
           </div>
         </section>
 
         <footer className="mt-16 border-t border-[var(--border)] py-8 text-center">
-          <p className="text-xs text-[var(--muted)]">
-            An & Yao
-          </p>
+          <p className="text-xs text-[var(--muted)]">An & Yao</p>
         </footer>
       </main>
     </AppShell>
