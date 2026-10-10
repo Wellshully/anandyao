@@ -23,6 +23,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const STALE_JOB_MS =
   15 * 60 * 1000;

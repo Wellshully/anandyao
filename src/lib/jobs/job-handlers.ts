@@ -4,6 +4,10 @@ import {
   syncNtuCoolForUser,
 } from "@/features/study/lib/sync-ntu-cool";
 
+import {
+  syncNtuMailForUser,
+} from "@/features/study/mail/sync-ntu-mail";
+
 import type {
   BackgroundJob,
 } from "@/lib/jobs/types";
@@ -135,6 +139,35 @@ async function handleStudyCoolSync(
 }
 
 
+async function handleStudyMailSync(
+  job: BackgroundJob,
+) {
+  const userId = getPayloadString(
+    job,
+    "userId",
+  );
+
+  console.info(
+    `[jobs] Study Mail sync started: ${job.id}`,
+  );
+
+  const result = await syncNtuMailForUser(
+    userId,
+    {
+      notify: true,
+    },
+  );
+
+  console.info(
+    "[jobs] Study Mail sync completed:",
+    {
+      jobId: job.id,
+      userId,
+      ...result,
+    },
+  );
+}
+
 const handlers = new Map<
   string,
   JobHandler
@@ -150,6 +183,10 @@ const handlers = new Map<
   [
     "study.cool-sync",
     handleStudyCoolSync,
+  ],
+  [
+    "study.mail-sync",
+    handleStudyMailSync,
   ],
 ]);
 

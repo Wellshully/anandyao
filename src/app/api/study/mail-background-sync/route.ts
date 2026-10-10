@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { syncAllConfiguredNtuMailAccounts } from "@/features/study/mail/sync-ntu-mail";
+import {
+  enqueueConfiguredStudyMailSyncJobs,
+} from "@/features/study/jobs/enqueue-study-mail-sync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,14 +40,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const results = await syncAllConfiguredNtuMailAccounts();
+    const result =
+      await enqueueConfiguredStudyMailSyncJobs();
 
-    if (results.length === 0) {
+    if (result.jobs.length === 0) {
       return NextResponse.json(
         {
           success: false,
           error: "No Study Mail accounts are configured.",
-          results,
+          ...result,
         },
         {
           status: 500,
@@ -53,34 +56,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const successCount = results.filter((result) => result.success).length;
+    const createdCount = result.jobs.filter(
+      (job) => job.created,
+    ).length;
 
-    const failedCount = results.length - successCount;
-
-    /*
-     * If at least one account succeeds,
-     * return 200 so one broken NTU account
-     * does not make the whole cron run fail.
-     */
     return NextResponse.json(
       {
-        success: successCount > 0,
-
-        accounts: results.length,
-
-        successCount,
-
-        failedCount,
-
-        results,
+        success: true,
+        queued: createdCount,
+        ...result,
       },
       {
-        status: successCount === 0 ? 500 : 200,
+        status: createdCount > 0 ? 202 : 200,
       },
     );
   } catch (cause) {
     console.error(
-      "Mail background sync route failed:",
+      "Failed to enqueue Study Mail sync:",
       cause instanceof Error ? cause.message : cause,
     );
 
