@@ -12,6 +12,14 @@ import {
 } from "@/features/calendar/components/CalendarMonthView";
 
 import {
+  CalendarEventDetailPanel,
+} from "@/features/calendar/components/CalendarEventDetailPanel";
+
+import {
+  getCalendarRecurringSeries,
+} from "@/features/calendar/lib/get-calendar-recurring-series";
+
+import {
   getGoogleCalendarConnection,
 } from "@/features/calendar/google/get-google-calendar-connection";
 
@@ -25,6 +33,7 @@ type CalendarPageProps = {
       google?: string;
       view?: string;
       date?: string;
+       event?: string;
     }>;
 };
 
@@ -207,6 +216,15 @@ export default async function CalendarPage({
       params.google,
     );
 
+  const selectedEvent = params.event
+    ? events.find((event) => event.id === params.event) ?? null
+    : null;
+
+  const selectedRecurringSeries =
+    selectedEvent?.source === "pet_recurring_schedule"
+      ? await getCalendarRecurringSeries(selectedEvent.sourceId)
+      : null;
+
   return (
     <main
       className="
@@ -230,6 +248,16 @@ export default async function CalendarPage({
       ) : null}
 
 
+
+      {selectedEvent ? (
+        <CalendarEventDetailPanel
+          event={selectedEvent}
+          month={month}
+          view={view}
+          selectedDate={selectedDate}
+          recurringSeries={selectedRecurringSeries}
+        />
+      ) : null}
 
       <CalendarMonthView
         month={

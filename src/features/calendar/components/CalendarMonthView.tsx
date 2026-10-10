@@ -5,6 +5,10 @@ import type {
 } from "@/features/calendar/types";
 
 import {
+  getCalendarViewHref,
+} from "@/features/calendar/lib/calendar-event-navigation";
+
+import {
   getAdjacentMonth,
   getCalendarMonthGrid,
   getDateKeysBetween,
@@ -305,8 +309,10 @@ function getDayHref(
 
 function MonthEvent({
   event,
+  detailHref,
 }: {
   event: CalendarEvent;
+  detailHref: string;
 }) {
   const time =
     getEventTimeLabel(
@@ -376,12 +382,12 @@ function MonthEvent({
   );
 
   if (
-    event.href
+    detailHref
   ) {
     return (
       <Link
         href={
-          event.href
+          detailHref
         }
         className="
           block
@@ -399,8 +405,10 @@ function MonthEvent({
 
 function DayEvent({
   event,
+  detailHref,
 }: {
   event: CalendarEvent;
+  detailHref: string;
 }) {
   const time =
     event.allDay
@@ -477,7 +485,7 @@ function DayEvent({
         </p>
       </div>
 
-      {event.href ? (
+      {detailHref ? (
         <span
           className="
             shrink-0
@@ -492,12 +500,12 @@ function DayEvent({
   );
 
   if (
-    event.href
+    detailHref
   ) {
     return (
       <Link
         href={
-          event.href
+          detailHref
         }
         className="block"
       >
@@ -1149,6 +1157,14 @@ export function CalendarMonthView({
                             event,
                           ) => (
                             <MonthEvent
+                              detailHref={
+                                getCalendarViewHref({
+                                  month,
+                                  view,
+                                  date: day.date,
+                                  eventId: event.id,
+                                })
+                              }
                               key={
                                 event.id
                               }
@@ -1307,6 +1323,14 @@ export function CalendarMonthView({
                       {day.events.map(
                         (event) => (
                           <DayEvent
+                              detailHref={
+                                getCalendarViewHref({
+                                  month,
+                                  view,
+                                  date: day.date,
+                                  eventId: event.id,
+                                })
+                              }
                             key={
                               event.id
                             }
