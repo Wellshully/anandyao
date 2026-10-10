@@ -12,6 +12,19 @@ import type {
   BackgroundJob,
 } from "@/lib/jobs/types";
 
+import {
+  runPetDailyReports,
+} from "@/features/pet/report/run-daily-reports";
+
+import {
+  getPetReportNoDeviceRetry,
+  isPetReportJobDateCurrent,
+} from "@/features/pet/jobs/pet-daily-report-job-policy";
+
+import {
+  enqueueJob,
+} from "@/lib/jobs/enqueue-job";
+
 export type JobHandler = (
   job: BackgroundJob,
 ) => Promise<void>;
@@ -168,6 +181,122 @@ async function handleStudyMailSync(
   );
 }
 
+/*
+ * =========================================================
+ * Pet Daily Report
+ * =========================================================
+ */
+
+async function handlePetDailyReport(
+  job: BackgroundJob,
+) {
+  const userId = getPayloadString(
+    job,
+    "userId",
+  );
+
+  const reportDate = getPayloadString(
+    job,
+    "reportDate",
+  );
+
+  const timeZone = getPayloadString(
+    job,
+    "timeZone",
+  );
+
+  /*
+   * A delayed job must not accidentally
+   * generate a report for the next day.
+   */
+  if (
+    !isPetReportJobDateCurrent(
+      reportDate,
+      timeZone,
+      new Date(),
+    )
+  ) {
+    console.info(
+      "[jobs] Skipping expired Pet report job:",
+      job.id,
+    );
+    return;
+  }
+
+  /*
+   * Reuse the existing delivery lease,
+   * report persistence, and push behavior.
+   * Never force regeneration.
+   */
+  const stats = await runPetDailyReports({
+    userId,
+  });
+
+  if (stats.failed > 0) {
+    throw new Error(
+      `Pet Daily Report failed for ${stats.failed} setting(s).`,
+    );
+  }
+
+  /*
+   * If today's report was saved but there was no
+   * push-capable device, schedule a later check.
+   *
+   * The existing runner reuses the report, so
+   * this does not generate another AI report.
+   */
+  if (stats.noDevice > 0) {
+    const retry = getPetReportNoDeviceRetry(
+      new Date(),
+      userId,
+      reportDate,
+      timeZone,
+    );
+
+    if (retry) {
+      const scheduled = await enqueueJob({
+        jobType: "pet.daily-report",
+
+        payload: {
+          userId,
+          reportDate,
+          timeZone,
+        },
+
+        runAt: retry.runAt,
+
+        maxAttempts: 5,
+
+        idempotencyKey:
+          retry.idempotencyKey,
+      });
+
+      console.info(
+        "[jobs] Pet Daily Report push follow-up:",
+        {
+          jobId: job.id,
+          followUpJobId: scheduled.job.id,
+          retryAt: retry.runAt.toISOString(),
+          created: scheduled.created,
+        },
+      );
+    } else {
+      console.info(
+        "[jobs] Pet Daily Report has no device; local day is ending.",
+        job.id,
+      );
+    }
+  }
+
+  console.info(
+    "[jobs] Pet Daily Report completed:",
+    {
+      jobId: job.id,
+      ...stats,
+    },
+  );
+}
+
 const handlers = new Map<
   string,
   JobHandler
@@ -187,6 +316,10 @@ const handlers = new Map<
   [
     "study.mail-sync",
     handleStudyMailSync,
+  ],
+  [
+    "pet.daily-report",
+    handlePetDailyReport,
   ],
 ]);
 

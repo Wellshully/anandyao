@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { runPetDailyReports } from "@/features/pet/report/run-daily-reports";
+import {
+  enqueueDuePetDailyReportJobs,
+} from "@/features/pet/jobs/enqueue-pet-daily-report";
 
 export const runtime = "nodejs";
 
@@ -34,19 +36,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await runPetDailyReports();
+    const result = await enqueueDuePetDailyReportJobs();
 
     return NextResponse.json({
       success: true,
       result,
     });
   } catch (cause) {
-    console.error("Pet Daily Report worker failed:", cause);
+    console.error("Failed to enqueue Pet Daily Reports:", cause);
 
     return NextResponse.json(
       {
         success: false,
-        error: "Pet Daily Report worker failed.",
+        error: "Failed to enqueue Pet Daily Reports.",
       },
       {
         status: 500,
