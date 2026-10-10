@@ -369,3 +369,172 @@ html[data-theme="thistle"] {
 
   --on-accent: #f6eff2;
 }
+
+/* =========================================================
+   Crystal Glass — Midnight Obsidian
+   ========================================================= */
+
+html[data-theme="crystal-glass"] {
+  color-scheme: dark;
+
+  --background: #0d1020;
+
+  --surface: rgba(31, 35, 59, 0.67);
+  --surface-soft: rgba(51, 55, 88, 0.73);
+
+  --foreground: #f3f1ff;
+  --muted: #b0b4d0;
+
+  --border: rgba(185, 194, 244, 0.26);
+
+  --accent: #c4a9f7;
+  --accent-soft: rgba(122, 91, 185, 0.30);
+
+  --danger: #ff879c;
+
+  --on-accent: #171325;
+  --on-foreground: #0d1020;
+
+  --glass-highlight: rgba(255, 255, 255, 0.22);
+  --glass-shadow: rgba(0, 0, 0, 0.29);
+}
+
+/* Dark atmospheric background with soft refraction */
+
+html[data-theme="crystal-glass"] body {
+  min-height: 100dvh;
+
+  background-color: #0d1020;
+
+  background-image:
+    radial-gradient(
+      ellipse at 8% 8%,
+      rgba(110, 78, 181, 0.38),
+      transparent 40%
+    ),
+    radial-gradient(
+      ellipse at 96% 16%,
+      rgba(49, 112, 188, 0.30),
+      transparent 43%
+    ),
+    radial-gradient(
+      ellipse at 55% 80%,
+      rgba(116, 70, 145, 0.23),
+      transparent 48%
+    ),
+    radial-gradient(
+      ellipse at 85% 98%,
+      rgba(172, 135, 96, 0.11),
+      transparent 34%
+    ),
+    linear-gradient(
+      145deg,
+      #090c18 0%,
+      #171a31 48%,
+      #0c1124 100%
+    );
+}
+
+/* Keep background surfaces partially transparent */
+
+html[data-theme="crystal-glass"]
+  [class~="bg-[var(--background)]"] {
+  background-color: rgba(13, 16, 32, 0.42);
+}
+
+/* Glossy frosted-glass cards */
+
+html[data-theme="crystal-glass"]
+  :is(main, section, article, div, a, button)
+  [class~="never-used-glass-selector"] {
+  /* Reserved for future optical effects */
+}
+
+html[data-theme="crystal-glass"]
+  :is(main, section, article, div, a, button)[class~="bg-[var(--surface)]"] {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.11) 0%,
+      rgba(255, 255, 255, 0.025) 36%,
+      rgba(11, 16, 35, 0.12) 100%
+    ),
+    var(--surface);
+
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.025),
+    0 14px 42px var(--glass-shadow);
+}
+
+/* Floating navigation bar */
+
+html[data-theme="crystal-glass"] header.sticky {
+  background: rgba(17, 21, 40, 0.65);
+
+  border-bottom-color: rgba(195, 198, 246, 0.18);
+
+  backdrop-filter: blur(26px) saturate(160%);
+  -webkit-backdrop-filter: blur(26px) saturate(160%);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 7px 32px rgba(0, 0, 0, 0.20);
+}
+
+/* Fine crystal borders */
+
+html[data-theme="crystal-glass"]
+  :is(section, article, div)[class~="border-[var(--border)]"] {
+  border-color: rgba(185, 194, 244, 0.22);
+}
+
+/* Frosted input surfaces */
+
+html[data-theme="crystal-glass"]
+  :is(input, textarea, select) {
+  background-color: rgba(25, 29, 51, 0.82);
+  border-color: var(--border);
+  color: var(--foreground);
+}
+
+/* Keyboard accessibility */
+
+html[data-theme="crystal-glass"]
+  :is(button, a, input, textarea, select):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Mobile performance */
+
+@media (max-width: 640px) {
+  html[data-theme="crystal-glass"]
+    :is(main, section, article, div, a, button)[class~="bg-[var(--surface)]"] {
+    backdrop-filter: blur(11px) saturate(135%);
+    -webkit-backdrop-filter: blur(11px) saturate(135%);
+
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      0 8px 24px rgba(0, 0, 0, 0.20);
+  }
+}
+
+@media (min-width: 768px) {
+  html[data-theme="crystal-glass"] body {
+    background-attachment: fixed;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="crystal-glass"] *,
+  html[data-theme="crystal-glass"] *::before,
+  html[data-theme="crystal-glass"] *::after {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+  }
+}

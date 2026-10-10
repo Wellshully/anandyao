@@ -3,6 +3,7 @@ export const THEME_IDS = [
   "an-yao",
   "strawberry-milk",
   "thistle",
+  "crystal-glass",
   "dark",
   "mocha",
   "tokyo-night",
@@ -67,6 +68,18 @@ export const THEMES: readonly ThemeDefinition[] =
         "#814b67",
       ],
       browserColor: "#ecdfe6",
+    },
+    {
+      id: "crystal-glass",
+      name: "Crystal Glass",
+      description: "深色琉璃、午夜藍紫與銀色晶體高光",
+      colors: [
+        "#0d1020",
+        "#242944",
+        "#435a87",
+        "#c4a9f7",
+      ],
+      browserColor: "#0d1020",
     },
     {
       id: "dark",
