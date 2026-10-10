@@ -10,6 +10,10 @@ import {
 
 import { sendPushToUser } from "@/features/notifications/lib/send-push-to-user";
 
+import type {
+  ReminderCandidate,
+} from "@/features/notifications/jobs/notification-dispatch-policy";
+
 const PERSONAL_WINDOW_MS = 10 * 60 * 1000;
 
 const ASSIGNMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -23,6 +27,10 @@ type ReminderStats = {
 };
 
 type RunNotificationRemindersOptions = {
+  now?: number;
+  strict?: boolean;
+  onCandidate?: (candidate: ReminderCandidate) => void;
+
   /*
    * For manual testing we can limit the
    * worker to the currently signed-in user.
@@ -152,7 +160,11 @@ async function deliverOnce({
   }
 }
 
-async function runPersonalReminders(now: number, userId?: string) {
+async function runPersonalReminders(
+  now: number,
+  userId?: string,
+  onCandidate?: (candidate: ReminderCandidate) => void,
+) {
   const supabase = createAdminClient();
 
   const end = now + PERSONAL_WINDOW_MS;
@@ -208,6 +220,16 @@ async function runPersonalReminders(now: number, userId?: string) {
       continue;
     }
 
+    if (onCandidate) {
+      onCandidate({
+        userId: plan.user_id,
+        notificationKey: `personal:${plan.id}:10m`,
+        notificationType: "personal_10m",
+        sourceId: plan.id,
+      });
+      continue;
+    }
+
     const delivered = await deliverOnce({
       userId: plan.user_id,
 
@@ -232,7 +254,11 @@ async function runPersonalReminders(now: number, userId?: string) {
   return sent;
 }
 
-async function runAssignmentReminders(now: number, userId?: string) {
+async function runAssignmentReminders(
+  now: number,
+  userId?: string,
+  onCandidate?: (candidate: ReminderCandidate) => void,
+) {
   const supabase = createAdminClient();
 
   const nowIso = new Date(now).toISOString();
@@ -268,6 +294,16 @@ async function runAssignmentReminders(now: number, userId?: string) {
   let sent = 0;
 
   for (const assignment of data ?? []) {
+    if (onCandidate) {
+      onCandidate({
+        userId: assignment.user_id,
+        notificationKey: `assignment:${assignment.id}:24h`,
+        notificationType: "assignment_24h",
+        sourceId: assignment.id,
+      });
+      continue;
+    }
+
     const delivered = await deliverOnce({
       userId: assignment.user_id,
 
@@ -292,7 +328,11 @@ async function runAssignmentReminders(now: number, userId?: string) {
   return sent;
 }
 
-async function runDateReminders(now: number, userId?: string) {
+async function runDateReminders(
+  now: number,
+  userId?: string,
+  onCandidate?: (candidate: ReminderCandidate) => void,
+) {
   const supabase = createAdminClient();
 
   const end = now + DATE_WINDOW_MS;
@@ -389,6 +429,16 @@ async function runDateReminders(now: number, userId?: string) {
     );
 
     for (const participant of participants) {
+      if (onCandidate) {
+        onCandidate({
+          userId: participant.user_id,
+          notificationKey: `date:${date.id}:${day.id}:1h`,
+          notificationType: "date_1h",
+          sourceId: day.id,
+        });
+        continue;
+      }
+
       const delivered = await deliverOnce({
         userId: participant.user_id,
 
@@ -422,6 +472,7 @@ async function runDateReminders(now: number, userId?: string) {
 async function runReminderCategory(
   category: keyof ReminderStats,
   worker: () => Promise<number>,
+  strict = false,
 ) {
   try {
     return await worker();
@@ -440,6 +491,10 @@ async function runReminderCategory(
         : String(cause),
     );
 
+    if (strict) {
+      throw cause;
+    }
+
     return 0;
   }
 }
@@ -447,7 +502,13 @@ async function runReminderCategory(
 export async function runNotificationReminders(
   options: RunNotificationRemindersOptions = {},
 ): Promise<ReminderStats> {
-  const now = Date.now();
+  const now = options.now ?? Date.now();
+
+  if (!Number.isFinite(now)) {
+    throw new Error(
+      "Invalid notification reminder time.",
+    );
+  }
 
   /*
    * Keep execution sequential to avoid suddenly
@@ -461,7 +522,9 @@ export async function runNotificationReminders(
         runPersonalReminders(
           now,
           options.userId,
+          options.onCandidate,
         ),
+      options.strict,
     );
 
   const assignments =
@@ -471,7 +534,9 @@ export async function runNotificationReminders(
         runAssignmentReminders(
           now,
           options.userId,
+          options.onCandidate,
         ),
+      options.strict,
     );
 
   const dates =
@@ -481,7 +546,9 @@ export async function runNotificationReminders(
         runDateReminders(
           now,
           options.userId,
+          options.onCandidate,
         ),
+      options.strict,
     );
 
   return {
@@ -489,4 +556,28 @@ export async function runNotificationReminders(
     assignments,
     dates,
   };
+}
+
+/**
+ * Enumerate eligible reminders without claiming
+ * deliveries or sending Push.
+ *
+ * Results may contain already-delivered reminders.
+ * The Queue producer must exclude them before
+ * enqueuing Jobs.
+ */
+export async function discoverNotificationReminderCandidates(
+  now = Date.now(),
+): Promise<ReminderCandidate[]> {
+  const candidates: ReminderCandidate[] = [];
+
+  await runNotificationReminders({
+    now,
+    strict: true,
+    onCandidate: (candidate) => {
+      candidates.push(candidate);
+    },
+  });
+
+  return candidates;
 }
