@@ -95,6 +95,11 @@ async function getRecentNtuMailHeadersFromClient(
   pop3: Pop3Command,
   limit: number,
 ): Promise<NtuMailHeader[]> {
+  const startedAt = Date.now();
+
+  let stage = "UIDL";
+  let completedHeaders = 0;
+
   try {
     const uidRows = await pop3.UIDL();
 
@@ -120,9 +125,18 @@ async function getRecentNtuMailHeadersFromClient(
      * ordered.
      */
     for (const item of latest) {
-      const result = await pop3.TOP(item.messageNumber, 0);
+      stage = "TOP";
+
+      const result = await pop3.TOP(
+        item.messageNumber,
+        0,
+      );
+
+      stage = "TOP-stream";
 
       const rawHeader = await pop3ResultToString(result);
+
+      stage = "parse-header";
 
       const parsed = await PostalMime.parse(rawHeader);
 
@@ -141,9 +155,37 @@ async function getRecentNtuMailHeadersFromClient(
 
         messageId: parsed.messageId || null,
       });
+
+      completedHeaders += 1;
     }
 
     return messages;
+  } catch (cause) {
+    /*
+     * Never log the POP3 command or raw error
+     * object: authentication commands may carry
+     * credentials.
+     */
+    const eventName =
+      cause &&
+      typeof cause === "object" &&
+      "eventName" in cause &&
+      typeof cause.eventName === "string"
+        ? cause.eventName
+        : null;
+
+    console.error(
+      "[study.mail-sync] POP3 header fetch failed:",
+      {
+        stage,
+        elapsedMs: Date.now() - startedAt,
+        completedHeaders,
+        requestedLimit: limit,
+        eventName,
+      },
+    );
+
+    throw cause;
   } finally {
     try {
       await pop3.QUIT();
@@ -174,7 +216,27 @@ export async function getRecentNtuMailHeadersForUser(
   userId: string,
   limit = 50,
 ): Promise<NtuMailHeader[]> {
-  const pop3 = await createPop3ClientForUser(userId);
+  const startedAt = Date.now();
+
+  let pop3: Pop3Command;
+
+  try {
+    pop3 = await createPop3ClientForUser(userId);
+  } catch (cause) {
+    /*
+     * Avoid logging the raw POP3 error:
+     * it may contain connection or login details.
+     */
+    console.error(
+      "[study.mail-sync] POP3 client initialization failed:",
+      {
+        stage: "client-init",
+        elapsedMs: Date.now() - startedAt,
+      },
+    );
+
+    throw cause;
+  }
 
   return getRecentNtuMailHeadersFromClient(pop3, limit);
 }
