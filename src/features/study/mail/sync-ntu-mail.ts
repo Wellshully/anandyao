@@ -3,7 +3,10 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-import { getRecentNtuMailHeadersForUser } from "@/features/study/mail/ntu-webmail-client";
+import {
+  getRecentNtuMailHeadersForUser,
+  type NtuMailHeader,
+} from "@/features/study/mail/ntu-webmail-client";
 
 import { shouldIgnoreNtuMail } from "@/features/study/mail/mail-filter";
 
@@ -206,7 +209,44 @@ export async function syncNtuMailForUser(
    * POP3 background version does not
    * require a browser auth session.
    */
-  const messages = await getRecentNtuMailHeadersForUser(userId, MAIL_LIMIT);
+  const messages = await getRecentNtuMailHeadersForUser(
+    userId,
+    MAIL_LIMIT,
+    async (uidls) => {
+      const cached = new Map<string, NtuMailHeader>();
+
+      if (uidls.length === 0) {
+        return cached;
+      }
+
+      const { data, error } = await supabase
+        .from("study_mail_messages")
+        .select(
+          "uidl, subject, from_name, from_address, sent_at, message_id_header",
+        )
+        .eq("user_id", userId)
+        .in("uidl", uidls);
+
+      if (error) {
+        throw new Error(
+          `Failed to load cached Mail headers: ${error.message}`,
+        );
+      }
+
+      for (const mail of data ?? []) {
+        cached.set(mail.uidl, {
+          uidl: mail.uidl,
+          subject: mail.subject,
+          fromName: mail.from_name,
+          fromAddress: mail.from_address,
+          sentAt: mail.sent_at,
+          messageId: mail.message_id_header,
+        });
+      }
+
+      return cached;
+    },
+  );
 
   const filteredMessages = messages.filter(
     (message) => !shouldIgnoreNtuMail(message.subject),

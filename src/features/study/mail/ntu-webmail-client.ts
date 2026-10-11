@@ -91,14 +91,21 @@ export type NtuMailHeader = {
   messageId: string | null;
 };
 
-async function getRecentNtuMailHeadersFromClient(
+export type NtuMailHeaderCacheResolver = (
+  uidls: string[],
+) => Promise<Map<string, NtuMailHeader>>;
+
+export async function getRecentNtuMailHeadersFromClient(
   pop3: Pop3Command,
   limit: number,
+  resolveCached?: NtuMailHeaderCacheResolver,
 ): Promise<NtuMailHeader[]> {
   const startedAt = Date.now();
 
   let stage = "UIDL";
   let completedHeaders = 0;
+  let cachedHeaders = 0;
+  let fetchedHeaders = 0;
 
   try {
     const uidRows = await pop3.UIDL();
@@ -115,6 +122,14 @@ async function getRecentNtuMailHeadersFromClient(
       .sort((a, b) => b.messageNumber - a.messageNumber)
       .slice(0, limit);
 
+    stage = "cache-lookup";
+
+    const cached = resolveCached
+      ? await resolveCached(
+          latest.map((item) => item.uidl),
+        )
+      : new Map<string, NtuMailHeader>();
+
     const messages: NtuMailHeader[] = [];
 
     /*
@@ -125,6 +140,15 @@ async function getRecentNtuMailHeadersFromClient(
      * ordered.
      */
     for (const item of latest) {
+      const existing = cached.get(item.uidl);
+
+      if (existing) {
+        messages.push(existing);
+        cachedHeaders += 1;
+        completedHeaders += 1;
+        continue;
+      }
+
       stage = "TOP";
 
       const result = await pop3.TOP(
@@ -157,7 +181,18 @@ async function getRecentNtuMailHeadersFromClient(
       });
 
       completedHeaders += 1;
+      fetchedHeaders += 1;
     }
+
+    console.info(
+      "[study.mail-sync] POP3 headers loaded:",
+      {
+        elapsedMs: Date.now() - startedAt,
+        cachedHeaders,
+        fetchedHeaders,
+        totalHeaders: messages.length,
+      },
+    );
 
     return messages;
   } catch (cause) {
@@ -180,6 +215,8 @@ async function getRecentNtuMailHeadersFromClient(
         stage,
         elapsedMs: Date.now() - startedAt,
         completedHeaders,
+        cachedHeaders,
+        fetchedHeaders,
         requestedLimit: limit,
         eventName,
       },
@@ -215,6 +252,7 @@ export async function getRecentNtuMailHeaders(
 export async function getRecentNtuMailHeadersForUser(
   userId: string,
   limit = 50,
+  resolveCached?: NtuMailHeaderCacheResolver,
 ): Promise<NtuMailHeader[]> {
   const startedAt = Date.now();
 
@@ -238,7 +276,11 @@ export async function getRecentNtuMailHeadersForUser(
     throw cause;
   }
 
-  return getRecentNtuMailHeadersFromClient(pop3, limit);
+  return getRecentNtuMailHeadersFromClient(
+    pop3,
+    limit,
+    resolveCached,
+  );
 }
 
 async function getNtuMailByUidlFromClient(pop3: Pop3Command, uidl: string) {

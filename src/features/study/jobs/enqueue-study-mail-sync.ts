@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createAdminClient } from "@/lib/supabase/admin";
+
 import {
   getConfiguredStudyUserIds,
 } from "@/features/study/lib/get-study-credentials";
@@ -23,8 +25,35 @@ export async function enqueueConfiguredStudyMailSyncJobs(
   const bucket = getStudyMailSyncBucket(now);
 
   const jobs = [];
+  const supabase = createAdminClient();
 
   for (const userId of userIds) {
+    /*
+     * A periodic poll needs at most one outstanding
+     * Mail sync job per user.
+     *
+     * Do not enqueue another poll while an older
+     * poll is still pending or running.
+     */
+    const { data: existing, error: existingError } =
+      await supabase
+        .from("background_jobs")
+        .select("id")
+        .eq("job_type", "study.mail-sync")
+        .in("status", ["pending", "running"])
+        .contains("payload", { userId })
+        .limit(1);
+
+    if (existingError) {
+      throw new Error(
+        `Failed to inspect pending Mail sync jobs: ${existingError.message}`,
+      );
+    }
+
+    if (existing && existing.length > 0) {
+      continue;
+    }
+
     const result = await enqueueJob({
       jobType: "study.mail-sync",
 
@@ -32,7 +61,12 @@ export async function enqueueConfiguredStudyMailSyncJobs(
         userId,
       },
 
-      maxAttempts: 5,
+      /*
+       * Cron polls again every five minutes.
+       * Retrying this poll five times would
+       * amplify intermittent POP3 timeouts.
+       */
+      maxAttempts: 1,
 
       idempotencyKey:
         getStudyMailSyncIdempotencyKey(
