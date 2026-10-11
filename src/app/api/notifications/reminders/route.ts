@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { runNotificationReminders } from "@/features/notifications/lib/run-notification-reminders";
+import {
+  enqueueDueNotificationDispatchJobs,
+} from "@/features/notifications/jobs/enqueue-notification-dispatch";
 
 export const runtime = "nodejs";
 
@@ -35,7 +37,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await runNotificationReminders();
+    const result = await enqueueDueNotificationDispatchJobs();
 
     return NextResponse.json({
       success: true,

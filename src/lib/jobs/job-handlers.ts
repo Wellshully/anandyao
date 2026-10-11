@@ -13,6 +13,10 @@ import type {
 } from "@/lib/jobs/types";
 
 import {
+  runNotificationReminders,
+} from "@/features/notifications/lib/run-notification-reminders";
+
+import {
   runPetDailyReports,
 } from "@/features/pet/report/run-daily-reports";
 
@@ -297,6 +301,46 @@ async function handlePetDailyReport(
   );
 }
 
+/*
+ * =========================================================
+ * Notifications
+ * =========================================================
+ */
+async function handleNotificationDispatch(
+  job: BackgroundJob,
+) {
+  const userId = getPayloadString(
+    job,
+    "userId",
+  );
+
+  const notificationKey = getPayloadString(
+    job,
+    "notificationKey",
+  );
+
+  /*
+   * Re-read the source records before sending.
+   * Completed, deleted or expired reminders
+   * are skipped without sending Push.
+   */
+  const result = await runNotificationReminders({
+    userId,
+    onlyNotificationKey: notificationKey,
+    strict: true,
+    strictDelivery: true,
+  });
+
+  console.info(
+    "[jobs] Notification dispatch completed:",
+    {
+      jobId: job.id,
+      notificationKey,
+      ...result,
+    },
+  );
+}
+
 const handlers = new Map<
   string,
   JobHandler
@@ -316,6 +360,10 @@ const handlers = new Map<
   [
     "study.mail-sync",
     handleStudyMailSync,
+  ],
+  [
+    "notification.dispatch",
+    handleNotificationDispatch,
   ],
   [
     "pet.daily-report",

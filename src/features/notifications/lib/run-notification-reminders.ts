@@ -10,8 +10,13 @@ import {
 
 import { sendPushToUser } from "@/features/notifications/lib/send-push-to-user";
 
-import type {
-  ReminderCandidate,
+import {
+  buildScheduledNotificationKey,
+  getLegacyNotificationKey,
+  legacyDeliveryCoversSchedule,
+  matchesNotificationDispatchKey,
+  shouldRunNotificationCategory,
+  type ReminderCandidate,
 } from "@/features/notifications/jobs/notification-dispatch-policy";
 
 const PERSONAL_WINDOW_MS = 10 * 60 * 1000;
@@ -30,6 +35,8 @@ type RunNotificationRemindersOptions = {
   now?: number;
   strict?: boolean;
   onCandidate?: (candidate: ReminderCandidate) => void;
+  onlyNotificationKey?: string;
+  strictDelivery?: boolean;
 
   /*
    * For manual testing we can limit the
@@ -65,6 +72,7 @@ async function deliverOnce({
   title,
   body,
   url,
+  strictDelivery = false,
 }: {
   userId: string;
   notificationKey: string;
@@ -73,7 +81,37 @@ async function deliverOnce({
   title: string;
   body: string;
   url: string;
+  strictDelivery?: boolean;
 }) {
+  const legacyKey =
+    getLegacyNotificationKey(notificationKey);
+
+  if (legacyKey) {
+    const { data: previous, error } =
+      await createAdminClient()
+        .from("notification_deliveries")
+        .select("status,sent_at")
+        .eq("user_id", userId)
+        .eq("notification_key", legacyKey)
+        .maybeSingle();
+
+    if (error) {
+      throw new Error(
+        `Failed to check legacy notification delivery: ${error.message}`,
+      );
+    }
+
+    if (
+      previous?.status === "delivered" &&
+      legacyDeliveryCoversSchedule(
+        notificationKey,
+        previous.sent_at,
+      )
+    ) {
+      return false;
+    }
+  }
+
   const claimToken =
     await claimNotificationDelivery({
       userId,
@@ -83,6 +121,28 @@ async function deliverOnce({
     });
 
   if (!claimToken) {
+    if (strictDelivery) {
+      const { data: existing, error } =
+        await createAdminClient()
+          .from("notification_deliveries")
+          .select("status")
+          .eq("user_id", userId)
+          .eq("notification_key", notificationKey)
+          .maybeSingle();
+
+      if (error) {
+        throw new Error(
+          `Failed to inspect notification delivery: ${error.message}`,
+        );
+      }
+
+      if (existing?.status !== "delivered") {
+        throw new Error(
+          `Notification delivery is still claimed: ${notificationKey}`,
+        );
+      }
+    }
+
     return false;
   }
 
@@ -95,6 +155,7 @@ async function deliverOnce({
    * cause an immediate duplicate notification.
    */
   let pushDelivered = false;
+  let claimReleased = false;
 
   try {
     const result = await sendPushToUser(
@@ -107,23 +168,53 @@ async function deliverOnce({
     );
 
     if (result.sent === 0) {
-      await releaseNotificationDeliveryClaim({
-        userId,
-        notificationKey,
-        claimToken,
-      });
+      const released =
+        await releaseNotificationDeliveryClaim({
+          userId,
+          notificationKey,
+          claimToken,
+        });
+
+      claimReleased = true;
+
+      if (strictDelivery) {
+        throw new Error(
+          `No device received notification (failed=${result.failed}, removed=${result.removed}, released=${released}).`,
+        );
+      }
 
       return false;
     }
 
     pushDelivered = true;
 
-    const completed =
-      await completeNotificationDelivery({
+    let completed = false;
+
+    try {
+      completed = await completeNotificationDelivery({
         userId,
         notificationKey,
         claimToken,
       });
+    } catch (cause) {
+      /*
+       * At least one Push request succeeded.
+       * Replaying after a receipt-write failure
+       * may result in duplicate notifications.
+       *
+       * Leave the delivery claim untouched and
+       * flag the record for manual reconciliation.
+       */
+      console.error(
+        "Push sent, but its delivery record could not be completed; manual reconciliation needed:",
+        notificationKey,
+        cause instanceof Error
+          ? cause.message
+          : String(cause),
+      );
+
+      return true;
+    }
 
     if (!completed) {
       /*
@@ -135,13 +226,13 @@ async function deliverOnce({
        * delete another worker's claim.
        */
       console.warn(
-        "Notification was pushed but its delivery lease could not be completed.",
+        "Notification was pushed but its delivery lease could not be completed; manual reconciliation needed.",
       );
     }
 
     return true;
   } catch (cause) {
-    if (!pushDelivered) {
+    if (!pushDelivered && !claimReleased) {
       await releaseNotificationDeliveryClaim({
         userId,
         notificationKey,
@@ -156,6 +247,10 @@ async function deliverOnce({
         : String(cause),
     );
 
+    if (strictDelivery) {
+      throw cause;
+    }
+
     return false;
   }
 }
@@ -164,6 +259,8 @@ async function runPersonalReminders(
   now: number,
   userId?: string,
   onCandidate?: (candidate: ReminderCandidate) => void,
+  onlyNotificationKey?: string,
+  strictDelivery = false,
 ) {
   const supabase = createAdminClient();
 
@@ -220,10 +317,24 @@ async function runPersonalReminders(
       continue;
     }
 
+    const reminderKey = buildScheduledNotificationKey(
+      `personal:${plan.id}:10m`,
+      startAt,
+    );
+
+    if (
+      !matchesNotificationDispatchKey(
+        reminderKey,
+        onlyNotificationKey,
+      )
+    ) {
+      continue;
+    }
+
     if (onCandidate) {
       onCandidate({
         userId: plan.user_id,
-        notificationKey: `personal:${plan.id}:10m`,
+        notificationKey: reminderKey,
         notificationType: "personal_10m",
         sourceId: plan.id,
       });
@@ -231,9 +342,10 @@ async function runPersonalReminders(
     }
 
     const delivered = await deliverOnce({
+      strictDelivery,
       userId: plan.user_id,
 
-      notificationKey: `personal:${plan.id}:10m`,
+      notificationKey: reminderKey,
 
       notificationType: "personal_10m",
 
@@ -258,6 +370,8 @@ async function runAssignmentReminders(
   now: number,
   userId?: string,
   onCandidate?: (candidate: ReminderCandidate) => void,
+  onlyNotificationKey?: string,
+  strictDelivery = false,
 ) {
   const supabase = createAdminClient();
 
@@ -294,10 +408,34 @@ async function runAssignmentReminders(
   let sent = 0;
 
   for (const assignment of data ?? []) {
+    if (!assignment.due_at) {
+      continue;
+    }
+
+    const scheduledAt = Date.parse(assignment.due_at);
+
+    if (!Number.isFinite(scheduledAt)) {
+      continue;
+    }
+
+    const reminderKey = buildScheduledNotificationKey(
+      `assignment:${assignment.id}:24h`,
+      scheduledAt,
+    );
+
+    if (
+      !matchesNotificationDispatchKey(
+        reminderKey,
+        onlyNotificationKey,
+      )
+    ) {
+      continue;
+    }
+
     if (onCandidate) {
       onCandidate({
         userId: assignment.user_id,
-        notificationKey: `assignment:${assignment.id}:24h`,
+        notificationKey: reminderKey,
         notificationType: "assignment_24h",
         sourceId: assignment.id,
       });
@@ -305,9 +443,10 @@ async function runAssignmentReminders(
     }
 
     const delivered = await deliverOnce({
+      strictDelivery,
       userId: assignment.user_id,
 
-      notificationKey: `assignment:${assignment.id}:24h`,
+      notificationKey: reminderKey,
 
       notificationType: "assignment_24h",
 
@@ -332,6 +471,8 @@ async function runDateReminders(
   now: number,
   userId?: string,
   onCandidate?: (candidate: ReminderCandidate) => void,
+  onlyNotificationKey?: string,
+  strictDelivery = false,
 ) {
   const supabase = createAdminClient();
 
@@ -429,10 +570,29 @@ async function runDateReminders(
     );
 
     for (const participant of participants) {
+      const scheduledAt = buildTaipeiTimestamp(
+        day.date,
+        day.planning_start_time,
+      );
+
+      const reminderKey = buildScheduledNotificationKey(
+        `date:${date.id}:${day.id}:1h`,
+        scheduledAt,
+      );
+
+      if (
+        !matchesNotificationDispatchKey(
+          reminderKey,
+          onlyNotificationKey,
+        )
+      ) {
+        continue;
+      }
+
       if (onCandidate) {
         onCandidate({
           userId: participant.user_id,
-          notificationKey: `date:${date.id}:${day.id}:1h`,
+          notificationKey: reminderKey,
           notificationType: "date_1h",
           sourceId: day.id,
         });
@@ -440,6 +600,7 @@ async function runDateReminders(
       }
 
       const delivered = await deliverOnce({
+        strictDelivery,
         userId: participant.user_id,
 
         /*
@@ -447,7 +608,7 @@ async function runDateReminders(
          * multi-day Date should be able to
          * remind once for each day.
          */
-        notificationKey: `date:${date.id}:${day.id}:1h`,
+        notificationKey: reminderKey,
 
         notificationType: "date_1h",
 
@@ -516,40 +677,61 @@ export async function runNotificationReminders(
    * isolating each category's failures.
    */
   const personal =
-    await runReminderCategory(
+    shouldRunNotificationCategory(
       "personal",
-      () =>
-        runPersonalReminders(
-          now,
-          options.userId,
-          options.onCandidate,
-        ),
-      options.strict,
-    );
+      options.onlyNotificationKey,
+    )
+      ? await runReminderCategory(
+          "personal",
+          () =>
+            runPersonalReminders(
+              now,
+              options.userId,
+              options.onCandidate,
+              options.onlyNotificationKey,
+              options.strictDelivery,
+            ),
+          options.strict,
+        )
+      : 0;
 
   const assignments =
-    await runReminderCategory(
+    shouldRunNotificationCategory(
       "assignments",
-      () =>
-        runAssignmentReminders(
-          now,
-          options.userId,
-          options.onCandidate,
-        ),
-      options.strict,
-    );
+      options.onlyNotificationKey,
+    )
+      ? await runReminderCategory(
+          "assignments",
+          () =>
+            runAssignmentReminders(
+              now,
+              options.userId,
+              options.onCandidate,
+              options.onlyNotificationKey,
+              options.strictDelivery,
+            ),
+          options.strict,
+        )
+      : 0;
 
   const dates =
-    await runReminderCategory(
+    shouldRunNotificationCategory(
       "dates",
-      () =>
-        runDateReminders(
-          now,
-          options.userId,
-          options.onCandidate,
-        ),
-      options.strict,
-    );
+      options.onlyNotificationKey,
+    )
+      ? await runReminderCategory(
+          "dates",
+          () =>
+            runDateReminders(
+              now,
+              options.userId,
+              options.onCandidate,
+              options.onlyNotificationKey,
+              options.strictDelivery,
+            ),
+          options.strict,
+        )
+      : 0;
 
   return {
     personal,
