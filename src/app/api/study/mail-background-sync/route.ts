@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const result =
       await enqueueConfiguredStudyMailSyncJobs();
 
-    if (result.jobs.length === 0) {
+    if (result.configuredCount === 0) {
       return NextResponse.json(
         {
           success: false,

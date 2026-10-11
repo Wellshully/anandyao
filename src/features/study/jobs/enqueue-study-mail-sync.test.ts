@@ -110,7 +110,12 @@ describe("Study Mail sync job producer", () => {
       error: null,
     }));
 
-    await enqueueConfiguredStudyMailSyncJobs(now);
+    const result =
+      await enqueueConfiguredStudyMailSyncJobs(now);
+
+    expect(result.configuredCount).toBe(2);
+    expect(result.skippedCount).toBe(2);
+    expect(result.jobs).toEqual([]);
 
     expect(mocks.enqueueJob).not.toHaveBeenCalled();
 
@@ -130,7 +135,12 @@ describe("Study Mail sync job producer", () => {
       error: null,
     }));
 
-    await enqueueConfiguredStudyMailSyncJobs(now);
+    const result =
+      await enqueueConfiguredStudyMailSyncJobs(now);
+
+    expect(result.configuredCount).toBe(2);
+    expect(result.skippedCount).toBe(1);
+    expect(result.jobs).toHaveLength(1);
 
     expect(mocks.enqueueJob).toHaveBeenCalledTimes(1);
 

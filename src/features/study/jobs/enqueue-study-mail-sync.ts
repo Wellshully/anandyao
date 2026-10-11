@@ -25,6 +25,7 @@ export async function enqueueConfiguredStudyMailSyncJobs(
   const bucket = getStudyMailSyncBucket(now);
 
   const jobs = [];
+  let skippedCount = 0;
   const supabase = createAdminClient();
 
   for (const userId of userIds) {
@@ -51,6 +52,7 @@ export async function enqueueConfiguredStudyMailSyncJobs(
     }
 
     if (existing && existing.length > 0) {
+      skippedCount += 1;
       continue;
     }
 
@@ -85,6 +87,8 @@ export async function enqueueConfiguredStudyMailSyncJobs(
 
   return {
     bucket,
+    configuredCount: userIds.length,
+    skippedCount,
     jobs,
   };
 }
