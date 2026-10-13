@@ -60,7 +60,32 @@ export async function processPetAdventureRewardImageJob(
   }
 
   if (imageKind.data.reward_type === "decor") {
-    await assertCutoutReady();
+    const readyStartedAt = Date.now();
+
+    try {
+      await assertCutoutReady();
+
+      console.info(
+        "[pet-adventure] ISNet preflight succeeded",
+        {
+          rewardId,
+          elapsedMs: Date.now() - readyStartedAt,
+        },
+      );
+    } catch (cause) {
+      console.error(
+        "[pet-adventure] ISNet preflight failed before image claim",
+        {
+          rewardId,
+          elapsedMs: Date.now() - readyStartedAt,
+          error: cause instanceof Error
+            ? cause.message
+            : String(cause),
+        },
+      );
+
+      throw cause;
+    }
   }
 
   // 原子性領取，並執行資料庫端每日次數限制。

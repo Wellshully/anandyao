@@ -26,7 +26,7 @@ export async function assertCutoutReady(): Promise<void> {
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
-    signal: AbortSignal.timeout(25_000),
+    signal: AbortSignal.timeout(45_000),
   });
   if (!response.ok) {
     throw new Error(`ISNet cutout service is unavailable (HTTP ${response.status})`);
