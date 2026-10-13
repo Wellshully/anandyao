@@ -59,4 +59,4 @@ export function taipeiDateKey(now: Date) {
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
-export const REWARD_WAIT_MS = 60 * 1000;
+export const REWARD_WAIT_MS = 180_000;

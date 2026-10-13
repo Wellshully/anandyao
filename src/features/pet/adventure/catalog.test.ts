@@ -25,7 +25,7 @@ describe("Pet Adventure V1 rules", () => {
     expect(taipeiDateKey(new Date("2026-10-11T15:59:59.000Z"))).toBe("2026-10-11");
     expect(taipeiDateKey(new Date("2026-10-11T16:00:00.000Z"))).toBe("2026-10-12");
   });
-  it("requires one minute before opening", () => {
-    expect(REWARD_WAIT_MS).toBe(60000);
+  it("requires three minutes before opening", () => {
+    expect(REWARD_WAIT_MS).toBe(180000);
   });
 });
