@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   choosePetAdventureRewardAction,
+  startPetAdventureSecondQuestAction,
   discardPetAdventureRewardAction,
   equipPetAdventureRewardAction,
   getPetAdventureStateAction,
@@ -22,6 +23,7 @@ import {
   type PetAdventureState,
 } from "./actions";
 import { rewardAppearance, ROOMS } from "./catalog";
+import { displayAdventureText } from "./display-adventure-text";
 
 type Props = { refreshSignal: number };
 type Reward = PetAdventureState["rewards"][number];
@@ -177,6 +179,8 @@ export default function PetAdventure({ refreshSignal }: Props) {
       return;
     }
 
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (event.pointerType === "touch") event.preventDefault();
     const box = roomRef.current.getBoundingClientRect();
 
     if (!box.width || !box.height) return;
@@ -211,6 +215,8 @@ export default function PetAdventure({ refreshSignal }: Props) {
     ) {
       return;
     }
+
+    if (event.pointerType === "touch") event.preventDefault();
 
     const x = Math.max(
       0.08,
@@ -348,6 +354,23 @@ export default function PetAdventure({ refreshSignal }: Props) {
     }
   }
 
+  async function startSecondQuest() {
+    if (!data || busy || !data.quest.canStartSecondRound) return;
+    setBusy("second-round");
+    setError("");
+    try {
+      const result = await startPetAdventureSecondQuestAction();
+      if (!result.success) {
+        setError(result.error ?? "無法開始第二次任務。");
+      }
+      setData(await getPetAdventureStateAction());
+    } catch {
+      setError("建立第二次任務失敗，請重新整理後再試。");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function createGiftImage(id: string) {
     if (busy) return;
 
@@ -427,10 +450,12 @@ export default function PetAdventure({ refreshSignal }: Props) {
             <div className="space-y-4">
               <div className="rounded-2xl bg-[var(--surface-soft)] p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-story font-semibold">{data.quest.title}</h3>
-                  <span className="shrink-0 text-xs text-[var(--muted)]">{data.today}</span>
+                  <h3 className="font-story font-semibold">{displayAdventureText(data.quest.title)}</h3>
+                  <span className="shrink-0 text-xs text-[var(--muted)]">
+                    {data.today}{data.quest.maxRounds === 2 ? ` · 第 ${data.quest.round}/2 次` : ""}
+                  </span>
                 </div>
-                <p className="mt-2 text-sm leading-6">{data.quest.story}</p>
+                <p className="mt-2 whitespace-pre-line text-sm leading-6">{displayAdventureText(data.quest.story)}</p>
                 <p className="mt-3 text-xs text-[var(--muted)]">
                   {data.quest.completedAt ? "已完成" : data.quest.mode === "couple"
                     ? "雙人互動 · 需要兩位玩家各自確認"
@@ -551,7 +576,7 @@ export default function PetAdventure({ refreshSignal }: Props) {
                       </div>
                       <h4 className="mt-3 font-story text-lg font-semibold">{latest.title}</h4>
                       <p className="mt-1 text-xs text-[var(--muted)]">{latest.kind === "room" ? "新房間背景" : "房間擺飾"}</p>
-                      <p className="mt-2 text-sm">{latest.story}</p>
+                      <p className="mt-2 whitespace-pre-line text-sm">{displayAdventureText(latest.story)}</p>
                       {latest.choice === null ? (
                         <div className="mt-4 flex justify-center gap-3">
                           <button type="button" disabled={!!busy} onClick={() => void change(latest.id, "accept")} className={strongButton}>收下禮物</button>
@@ -572,9 +597,20 @@ export default function PetAdventure({ refreshSignal }: Props) {
                   完成今日任務後，萌蛋會準備一件神祕禮物。
                 </div>
               )}
-              <p className="text-xs leading-5 text-[var(--muted)]">
-                第一版使用隨機收藏樣板來驗證玩法；AI 專屬圖片生成將於下一階段接入。
-              </p>
+              {data.quest.maxRounds === 2 && data.quest.round === 1 && data.quest.completedAt && (
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] p-4">
+                  <p className="text-sm font-medium">10 月 13 日限定：可再完成一次任務、獲得第二份禮物。</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">第一份禮物需先開箱並選擇收下或放棄；兩次共用原本的每日 AI 圖片額度。</p>
+                  <button
+                    type="button"
+                    className={`${strongButton} mt-3`}
+                    disabled={!!busy || !data.quest.canStartSecondRound}
+                    onClick={() => void startSecondQuest()}
+                  >
+                    {data.quest.canStartSecondRound ? "開始今日第 2 次任務" : "請先處理第一份禮物"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -599,15 +635,21 @@ export default function PetAdventure({ refreshSignal }: Props) {
               </div>
               <div
                 ref={roomRef}
-                className="relative isolate h-[65dvh] min-h-[22rem] max-h-[44rem] w-full overflow-hidden rounded-2xl sm:h-[70dvh]"
-                style={{ background: room.bg }}
+                className="relative isolate h-[55dvh] min-h-[20rem] max-h-[36rem] w-full overflow-hidden rounded-2xl sm:h-[60dvh]"
+                style={{
+                  background: room.bg,
+                  // Disable browser pan/scroll arbitration only inside the editing canvas.
+                  touchAction: editingFurniture ? "none" : "pan-y",
+                  overscrollBehavior: editingFurniture ? "contain" : "auto",
+                }}
               >
                 {roomGift?.imageUrl && (
                   <div
                     aria-hidden="true"
-                    className="pointer-events-none absolute -inset-[5%] z-0 bg-cover bg-center bg-no-repeat"
+                    className="pointer-events-none absolute -inset-x-[10%] -top-[10%] -bottom-[22%] z-0 bg-cover bg-center bg-no-repeat"
                     style={{
                       backgroundImage: `url("${roomGift.imageUrl}")`,
+                      backgroundPosition: "center 35%",
                     }}
                   />
                 )}
@@ -658,6 +700,7 @@ export default function PetAdventure({ refreshSignal }: Props) {
                       onPointerMove={moveDrag}
                       onPointerUp={(event) => void endDrag(event)}
                       onPointerCancel={cancelDrag}
+                      onDragStart={(event) => event.preventDefault()}
                       className={`absolute z-[60] flex h-24 w-24 select-none items-center justify-center rounded-full drop-shadow-md sm:h-[7.5rem] sm:w-[7.5rem] ${
                         editingFurniture
                           ? selectedFurnitureId === item.id

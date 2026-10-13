@@ -17,6 +17,11 @@ import {
 import { COUPLE_QUESTS, pickCoupleQuest, generateCoupleQuest } from "./couple-quests";
 import { generatePetActionQuest } from "./pet-action-quests";
 import { selectQuestMode } from "./quest-mode";
+import {
+  canStartSecondAdventureRound,
+  adventureRoundsAllowed,
+  SECOND_ADVENTURE_DATE,
+} from "./second-adventure-round";
 
 // These tables are introduced by the V1 migration and have not yet been
 // incorporated into the project's generated Database type. Use a scoped
@@ -75,6 +80,9 @@ export type PetAdventureState = {
     goal: number;
     progress: number;
     completedAt: string | null;
+    round: number;
+    maxRounds: number;
+    canStartSecondRound: boolean;
   };
   rewards: Array<{
     id: string;
@@ -362,6 +370,15 @@ export async function getPetAdventureStateAction(): Promise<PetAdventureState> {
     .limit(100);
   ensureOk(rewardsError, "Failed to read pet rewards");
 
+  const currentRewardChoice = ((allRewards ?? []) as RewardRow[])
+    .find((item) => item.quest_id === quest.id)?.choice ?? null;
+  const canStartSecondRound = canStartSecondAdventureRound({
+    today,
+    round: quest.test_round,
+    completedAt: quest.completed_at,
+    rewardChoice: currentRewardChoice,
+  });
+
   const serverNow = Date.now();
   const rewards = await Promise.all(((allRewards ?? []) as RewardRow[])
     // Keep today's discarded reward so the UI can show its final state.
@@ -430,11 +447,82 @@ export async function getPetAdventureStateAction(): Promise<PetAdventureState> {
       goal: quest.goal,
       progress,
       completedAt: quest.completed_at,
+      round: quest.test_round + 1,
+      maxRounds: adventureRoundsAllowed(today),
+      canStartSecondRound,
     },
     rewards,
   };
 }
 
+
+/** One-day, shared-pet bonus round, with no repeat or reward reset. */
+export async function startPetAdventureSecondQuestAction(): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const { pet, db } = await context();
+    const today = taipeiDateKey(new Date());
+    if (today !== SECOND_ADVENTURE_DATE) {
+      return { success: false, error: "今日限定的第二次任務已結束。" };
+    }
+    const first = await ensureQuest(db, pet.id, today);
+    if (first.test_round !== 0) {
+      return { success: false, error: "今天的第二次任務已經開始。" };
+    }
+    if (!first.completed_at) {
+      return { success: false, error: "請先完成第一次任務。" };
+    }
+
+    await ensureReward(db, first);
+    const gift = await db.from("pet_adventure_rewards")
+      .select("choice")
+      .eq("pet_id", pet.id)
+      .eq("quest_id", first.id)
+      .single();
+    ensureOk(gift.error, "Failed to check first gift");
+    if (!canStartSecondAdventureRound({
+      today,
+      round: first.test_round,
+      completedAt: first.completed_at,
+      rewardChoice: gift.data?.choice ?? null,
+    })) {
+      return { success: false, error: "請先開箱並決定是否收下第一次的禮物。" };
+    }
+
+    const mode = selectQuestMode(randomInt(2));
+    const petCandidate = pickQuest(randomInt(QUESTS.length));
+    const coupleCandidate = pickCoupleQuest(randomInt(COUPLE_QUESTS.length));
+    const chosen = mode === "couple" ? coupleCandidate : petCandidate;
+    // Prevent creating yesterday's round if the request crosses Taipei midnight.
+    if (taipeiDateKey(new Date()) !== SECOND_ADVENTURE_DATE) {
+      return { success: false, error: "今日限定活動已結束。" };
+    }
+
+    const insert = await db.from("pet_adventure_quests").upsert({
+      pet_id: pet.id,
+      quest_date: today,
+      test_round: 1,
+      quest_mode: mode,
+      ai_status: "pending",
+      action_type: mode === "couple" ? "play" : petCandidate.action,
+      goal: mode === "couple" ? 2 : petCandidate.goal,
+      title: chosen.title,
+      story: chosen.story,
+    }, {
+      onConflict: "pet_id,quest_date,test_round",
+      ignoreDuplicates: true,
+    });
+    ensureOk(insert.error, "Failed to create second daily quest");
+    revalidatePath("/pet");
+    revalidatePath("/pet/adventure");
+    return { success: true };
+  } catch (cause) {
+    console.error("Second Pet Adventure round failed", cause);
+    return { success: false, error: "第二次任務建立失敗，請重新整理後再試。" };
+  }
+}
 
 export async function rerollPetAdventureTestQuestAction() {
   if (!testToolsEnabled()) {
