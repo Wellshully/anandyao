@@ -343,11 +343,16 @@ export default function PetCharacter({
         className="
           relative
           flex
-          h-[60vh]
-          min-h-[22rem]
-          max-h-[36rem]
-          w-[86vw]
-          max-w-[38rem]
+          h-[38dvh]
+          min-h-[12rem]
+          max-h-[19rem]
+          w-[76vw]
+          max-w-[20rem]
+          sm:h-[60vh]
+          sm:min-h-[22rem]
+          sm:max-h-[36rem]
+          sm:w-[86vw]
+          sm:max-w-[38rem]
           items-center
           justify-center
         "
@@ -370,7 +375,7 @@ export default function PetCharacter({
             fill
             priority
             sizes="
-              (max-width: 640px) 86vw,
+              (max-width: 640px) 76vw,
               608px
             "
             className="

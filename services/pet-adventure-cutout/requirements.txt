@@ -1,0 +1,4 @@
+rembg[cpu]==2.0.85
+Pillow>=10,<13
+fastapi>=0.115,<1
+uvicorn>=0.32,<1

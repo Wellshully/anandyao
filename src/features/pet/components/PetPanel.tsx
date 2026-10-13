@@ -14,6 +14,7 @@ import {
 } from "@/features/pet/ai/conversation";
 
 import PetCharacter from "@/features/pet/components/PetCharacter";
+import PetAdventureEntry from "@/features/pet/adventure/PetAdventureEntry";
 
 import { PET_RULES } from "@/features/pet/lib/pet-rules";
 
@@ -74,6 +75,7 @@ export default function PetPanel({
   const conversationStorageKey = `pet-conversation-v2:${petId}:${currentUserId}`;
 
   const [state, setState] = useState(initialState);
+  const [adventureTick, setAdventureTick] = useState(0);
 
   const [animation, setAnimation] = useState<PetAnimation>("idle");
 
@@ -195,6 +197,9 @@ export default function PetPanel({
 
       setState(result.state);
 
+      // The server has already recorded the Pet action in pet_events.
+      setAdventureTick((value) => value + 1);
+
       setAnimation(action);
 
       setInteractionMessage(actionMessages[action]);
@@ -287,7 +292,7 @@ export default function PetPanel({
           Our Pet
         </p>
 
-        <h1 className="font-story mt-2 text-3xl font-semibold">{name}</h1>
+        <h1 className="font-story mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl">{name}</h1>
 
         <p className="mt-2 text-xs text-[var(--muted)]">
           Lv. {state.level}
@@ -296,7 +301,7 @@ export default function PetPanel({
         </p>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-2 sm:mt-4">
         <PetCharacter
           mood={state.mood}
           animation={animation}
@@ -305,11 +310,73 @@ export default function PetPanel({
         />
       </div>
 
+      <div className="mx-auto mt-3 grid max-w-lg grid-cols-3 gap-2 sm:mt-6 sm:gap-3">
+        <button
+          type="button"
+          disabled={isInteractionPending || isTalking}
+          onClick={() => interact("feed")}
+          className="
+            rounded-xl
+            border
+            border-[var(--border)]
+            bg-[var(--surface)]
+            px-3
+            py-3
+            text-sm
+            transition
+            hover:border-[var(--foreground)]
+            disabled:opacity-50
+          "
+        >
+          餵食
+        </button>
+
+        <button
+          type="button"
+          disabled={isInteractionPending || isTalking}
+          onClick={() => interact("pet")}
+          className="
+            rounded-xl
+            border
+            border-[var(--border)]
+            bg-[var(--surface)]
+            px-3
+            py-3
+            text-sm
+            transition
+            hover:border-[var(--foreground)]
+            disabled:opacity-50
+          "
+        >
+          摸摸
+        </button>
+
+        <button
+          type="button"
+          disabled={isInteractionPending || isTalking}
+          onClick={() => interact("play")}
+          className="
+            rounded-xl
+            border
+            border-[var(--border)]
+            bg-[var(--surface)]
+            px-3
+            py-3
+            text-sm
+            transition
+            hover:border-[var(--foreground)]
+            disabled:opacity-50
+          "
+        >
+          玩耍
+        </button>
+      </div>
+
       <div
         className="
           mx-auto
-          mt-4
-          min-h-14
+          mt-2
+          min-h-0
           max-w-lg
         "
         aria-live="polite"
@@ -330,21 +397,6 @@ export default function PetPanel({
           >
             牠正在想……
           </div>
-        ) : petReply ? (
-          <div
-            className="
-              rounded-2xl
-              border
-              border-[var(--border)]
-              bg-[var(--surface)]
-              px-5
-              py-4
-              text-sm
-              leading-6
-            "
-          >
-            {petReply}
-          </div>
         ) : interactionMessage ? (
           <div className="text-center">
             <span
@@ -361,6 +413,21 @@ export default function PetPanel({
             >
               {interactionMessage}
             </span>
+          </div>
+        ) : petReply ? (
+          <div
+            className="
+              rounded-2xl
+              border
+              border-[var(--border)]
+              bg-[var(--surface)]
+              px-5
+              py-4
+              text-sm
+              leading-6
+            "
+          >
+            {petReply}
           </div>
         ) : null}
       </div>
@@ -456,67 +523,8 @@ export default function PetPanel({
         <StatRow label="精力" value={state.energy} />
       </div>
 
-      <div className="mt-6 grid grid-cols-3 gap-3">
-        <button
-          type="button"
-          disabled={isInteractionPending || isTalking}
-          onClick={() => interact("feed")}
-          className="
-            rounded-xl
-            border
-            border-[var(--border)]
-            bg-[var(--surface)]
-            px-3
-            py-3
-            text-sm
-            transition
-            hover:border-[var(--foreground)]
-            disabled:opacity-50
-          "
-        >
-          餵食
-        </button>
 
-        <button
-          type="button"
-          disabled={isInteractionPending || isTalking}
-          onClick={() => interact("pet")}
-          className="
-            rounded-xl
-            border
-            border-[var(--border)]
-            bg-[var(--surface)]
-            px-3
-            py-3
-            text-sm
-            transition
-            hover:border-[var(--foreground)]
-            disabled:opacity-50
-          "
-        >
-          摸摸
-        </button>
-
-        <button
-          type="button"
-          disabled={isInteractionPending || isTalking}
-          onClick={() => interact("play")}
-          className="
-            rounded-xl
-            border
-            border-[var(--border)]
-            bg-[var(--surface)]
-            px-3
-            py-3
-            text-sm
-            transition
-            hover:border-[var(--foreground)]
-            disabled:opacity-50
-          "
-        >
-          玩耍
-        </button>
-      </div>
+      <PetAdventureEntry refreshSignal={adventureTick} />
     </div>
   );
 }
