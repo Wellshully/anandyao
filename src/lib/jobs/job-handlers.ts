@@ -341,6 +341,19 @@ async function handleNotificationDispatch(
   );
 }
 
+async function handlePetAdventureRewardDesign(
+  job: BackgroundJob,
+) {
+  const petId = getPayloadString(job, "petId");
+  const rewardId = getPayloadString(job, "rewardId");
+
+  const { processPetAdventureRewardDesignJob } = await import(
+    "@/features/pet/adventure/jobs/generate-reward-design"
+  );
+
+  await processPetAdventureRewardDesignJob(petId, rewardId);
+}
+
 async function handlePetAdventureRewardImage(
   job: BackgroundJob,
 ) {
@@ -381,6 +394,10 @@ const handlers = new Map<
   [
     "pet.daily-report",
     handlePetDailyReport,
+  ],
+  [
+    "pet.adventure.reward-design",
+    handlePetAdventureRewardDesign,
   ],
   [
     "pet.adventure.reward-image",

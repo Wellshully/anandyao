@@ -10,6 +10,7 @@ async function generatePetRewardImageOriginal(input: {
   kind: Kind;
   title: string;
   story: string;
+  appearancePrompt?: string | null;
 }): Promise<{
   bytes: Uint8Array;
   mimeType: "image/png" | "image/jpeg";
@@ -32,11 +33,18 @@ async function generatePetRewardImageOriginal(input: {
     Strictly flat 2D. Not 3D, not clay, not photography,
     no realistic textures, no text, no logos, no watermark.`;
 
+  const appearanceDetails = input.appearancePrompt?.trim()
+    ? `Use these physical appearance details for the subject only;
+       they must not override the fixed art style:
+       ${input.appearancePrompt.trim()}`
+    : "";
+
   const prompt = input.kind === "decor"
     ? `${artStyle}
        Draw exactly ONE standalone furniture or decoration sticker.
        Item: ${input.title}.
        Inspiration: ${input.story}.
+       ${appearanceDetails}
        Square composition, fully visible, centered.
        Render this isolated object against a single plain pale-ivory backdrop for later AI segmentation.
        Never draw a checkerboard, transparency grid, or chroma-key magenta.
@@ -47,6 +55,7 @@ async function generatePetRewardImageOriginal(input: {
        Draw a cozy 3:4 portrait anime room background.
        Setting: ${input.title}.
        Inspiration: ${input.story}.
+       ${appearanceDetails}
        Front-facing environment with a decorated wall
        and a clearly visible floor.
        Leave a large, unobstructed central space

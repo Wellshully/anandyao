@@ -10,7 +10,7 @@ import {
 } from "react";
 import {
   choosePetAdventureRewardAction,
-  startPetAdventureSecondQuestAction,
+  startPetAdventureNextQuestAction,
   discardPetAdventureRewardAction,
   equipPetAdventureRewardAction,
   getPetAdventureStateAction,
@@ -24,6 +24,10 @@ import {
 } from "./actions";
 import { rewardAppearance, ROOMS } from "./catalog";
 import { displayAdventureText } from "./display-adventure-text";
+import {
+  canRevealReward,
+  isRewardDesignResolved,
+} from "./reward-reveal-policy";
 
 type Props = { refreshSignal: number };
 type Reward = PetAdventureState["rewards"][number];
@@ -354,18 +358,18 @@ export default function PetAdventure({ refreshSignal }: Props) {
     }
   }
 
-  async function startSecondQuest() {
-    if (!data || busy || !data.quest.canStartSecondRound) return;
+  async function startNextQuest() {
+    if (!data || busy || !data.quest.canStartNextRound) return;
     setBusy("second-round");
     setError("");
     try {
-      const result = await startPetAdventureSecondQuestAction();
+      const result = await startPetAdventureNextQuestAction();
       if (!result.success) {
-        setError(result.error ?? "無法開始第二次任務。");
+        setError(result.error ?? "無法開始下一輪任務。");
       }
       setData(await getPetAdventureStateAction());
     } catch {
-      setError("建立第二次任務失敗，請重新整理後再試。");
+      setError("建立下一輪任務失敗，請重新整理後再試。");
     } finally {
       setBusy(null);
     }
@@ -452,7 +456,12 @@ export default function PetAdventure({ refreshSignal }: Props) {
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="font-story font-semibold">{displayAdventureText(data.quest.title)}</h3>
                   <span className="shrink-0 text-xs text-[var(--muted)]">
-                    {data.today}{data.quest.maxRounds === 2 ? ` · 第 ${data.quest.round}/2 次` : ""}
+                    {data.today}
+                    {data.testPolicy.unlimitedQuests
+                      ? ` · 第 ${data.quest.round} 次（測試）`
+                      : data.quest.maxRounds === 2
+                        ? ` · 第 ${data.quest.round}/2 次`
+                        : ""}
                   </span>
                 </div>
                 <p className="mt-2 whitespace-pre-line text-sm leading-6">{displayAdventureText(data.quest.story)}</p>
@@ -561,12 +570,20 @@ export default function PetAdventure({ refreshSignal }: Props) {
                         )}
                       </div>
                     )}
-                  {now < Date.parse(latest.availableAt) ? (
+                  {!canRevealReward({
+                    designStatus: latest.designStatus,
+                    availableAt: latest.availableAt,
+                    now,
+                  }) ? (
                     <div className="py-4 text-center">
                       <div className="text-5xl" role="img" aria-label="包裝中的禮物">🎁</div>
                       <p className="mt-3 text-sm">萌蛋正在準備禮物……</p>
                       <p className="mt-1 text-xs tabular-nums text-[var(--muted)]">
-                        {now ? `${timeLeft(latest.availableAt, now)} 後可以開箱` : "準備中"}
+                        {!isRewardDesignResolved(latest.designStatus)
+                          ? "正在設計這份禮物，完成後即可開箱"
+                          : now
+                            ? `${timeLeft(latest.availableAt, now)} 後可以開箱`
+                            : "準備中"}
                       </p>
                     </div>
                   ) : (
@@ -597,17 +614,42 @@ export default function PetAdventure({ refreshSignal }: Props) {
                   完成今日任務後，萌蛋會準備一件神祕禮物。
                 </div>
               )}
-              {data.quest.maxRounds === 2 && data.quest.round === 1 && data.quest.completedAt && (
+              {(data.testPolicy.unlimitedQuests ||
+                (data.quest.maxRounds === 2 && data.quest.round === 1)) &&
+                data.quest.completedAt && (
                 <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] p-4">
-                  <p className="text-sm font-medium">10 月 13 日限定：可再完成一次任務、獲得第二份禮物。</p>
-                  <p className="mt-1 text-xs text-[var(--muted)]">第一份禮物需先開箱並選擇收下或放棄；兩次共用原本的每日 AI 圖片額度。</p>
+                  <p className="text-sm font-medium">
+                    {data.testPolicy.unlimitedQuests
+                      ? "測試模式：本日可重複冒險"
+                      : "10 月 13 日限定：可再完成一次任務、獲得第二份禮物。"}
+                  </p>
+
+                  {data.testPolicy.unlimitedQuests && data.testPolicy.expiresAt && (
+                    <p className="mt-1 text-xs text-[var(--muted)]">
+                      到期時間：
+                      {new Intl.DateTimeFormat("zh-TW", {
+                        timeZone: "Asia/Taipei",
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      }).format(new Date(data.testPolicy.expiresAt))}
+                      （臺北時間）
+                    </p>
+                  )}
+
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    請先完成本輪任務，並決定收下或放棄禮物。
+                    圖片生成仍遵守目前的每日圖片額度設定。
+                  </p>
+
                   <button
                     type="button"
                     className={`${strongButton} mt-3`}
-                    disabled={!!busy || !data.quest.canStartSecondRound}
-                    onClick={() => void startSecondQuest()}
+                    disabled={!!busy || !data.quest.canStartNextRound}
+                    onClick={() => void startNextQuest()}
                   >
-                    {data.quest.canStartSecondRound ? "開始今日第 2 次任務" : "請先處理第一份禮物"}
+                    {data.quest.canStartNextRound
+                      ? `開始今日第 ${data.quest.round + 1} 次任務`
+                      : "請先處理目前的禮物"}
                   </button>
                 </div>
               )}

@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generatePetRewardImage } from "../reward-image";
 import { assertCutoutReady } from "../image-cutout-client";
+import { isRewardDesignResolved } from "../reward-reveal-policy";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,13 +29,36 @@ export async function processPetAdventureRewardImageJob(
   // Check ISNet before atomically claiming a decor image quota. An unavailable
   // cutout service must not charge the daily quota or call paid Gemini.
   const imageKind = await db.from("pet_adventure_rewards")
-    .select("reward_type")
+    .select("reward_type,design_status,choice")
     .eq("id", rewardId)
     .eq("pet_id", petId)
     .single();
+
   if (imageKind.error || !imageKind.data) {
-    throw new Error(imageKind.error?.message ?? "Reward missing before cutout preflight");
+    throw new Error(
+      imageKind.error?.message ??
+      "Reward missing before cutout preflight",
+    );
   }
+
+  // Never claim the paid image quota before reward design
+  // has reached a final usable state.
+  if (
+    imageKind.data.design_status !== "ready" &&
+    imageKind.data.design_status !== "fallback" &&
+    imageKind.data.design_status !== "legacy"
+  ) {
+    console.info(
+      "[pet-adventure] Image skipped: design not ready",
+      { rewardId },
+    );
+    return;
+  }
+
+  if (imageKind.data.choice === "discarded") {
+    return;
+  }
+
   if (imageKind.data.reward_type === "decor") {
     await assertCutoutReady();
   }
@@ -67,7 +91,7 @@ export async function processPetAdventureRewardImageJob(
   try {
     const result = await db
       .from("pet_adventure_rewards")
-      .select("reward_type,title,story,choice")
+      .select("reward_type,title,story,choice,design_status,appearance_prompt")
       .eq("id", rewardId)
       .eq("pet_id", petId)
       .single();
@@ -79,6 +103,10 @@ export async function processPetAdventureRewardImageJob(
     }
 
     const item = result.data;
+
+    if (!isRewardDesignResolved(item.design_status)) {
+      throw new Error("Reward design is not finalized");
+    }
 
     if (
       item.reward_type !== "room" &&
@@ -101,6 +129,9 @@ export async function processPetAdventureRewardImageJob(
       kind: item.reward_type,
       title: item.title,
       story: item.story,
+      appearancePrompt: item.design_status === "ready"
+        ? item.appearance_prompt
+        : null,
     });
 
     const path =

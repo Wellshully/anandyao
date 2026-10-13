@@ -12,6 +12,7 @@ import type {
 
 const mocks = vi.hoisted(() => ({
   runNotificationReminders: vi.fn(),
+  processPetAdventureRewardDesignJob: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -47,6 +48,14 @@ vi.mock(
 vi.mock("@/lib/jobs/enqueue-job", () => ({
   enqueueJob: vi.fn(),
 }));
+
+vi.mock(
+  "@/features/pet/adventure/jobs/generate-reward-design",
+  () => ({
+    processPetAdventureRewardDesignJob:
+      mocks.processPetAdventureRewardDesignJob,
+  }),
+);
 
 import {
   getJobHandler,
@@ -164,5 +173,48 @@ describe("Notification dispatch Worker handler", () => {
     ).rejects.toThrow(
       "Simulated push delivery failure",
     );
+  });
+});
+
+
+describe("Pet Adventure Reward Design handler", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.processPetAdventureRewardDesignJob
+      .mockResolvedValue(undefined);
+  });
+
+  it("registers and dispatches reward design jobs", async () => {
+    const handler = getJobHandler(
+      "pet.adventure.reward-design",
+    );
+
+    await handler(makeJob({
+      petId: "pet-123",
+      rewardId: "reward-456",
+    }));
+
+    expect(
+      mocks.processPetAdventureRewardDesignJob,
+    ).toHaveBeenCalledExactlyOnceWith(
+      "pet-123",
+      "reward-456",
+    );
+  });
+
+  it("rejects missing reward IDs", async () => {
+    const handler = getJobHandler(
+      "pet.adventure.reward-design",
+    );
+
+    await expect(
+      handler(makeJob({
+        petId: "pet-123",
+      })),
+    ).rejects.toThrow("payload.rewardId");
+
+    expect(
+      mocks.processPetAdventureRewardDesignJob,
+    ).not.toHaveBeenCalled();
   });
 });

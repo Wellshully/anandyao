@@ -14,14 +14,30 @@ import {
   pickQuest, rewardAppearance, taipeiDateKey,
   type QuestAction, type RewardKind,
 } from "./catalog";
-import { COUPLE_QUESTS, pickCoupleQuest, generateCoupleQuest } from "./couple-quests";
-import { generatePetActionQuest } from "./pet-action-quests";
+import { COUPLE_QUESTS, pickCoupleQuest } from "./couple-quests";
+import {
+  generateAdventureQuestSpec,
+  QUEST_PROMPT_VERSION,
+} from "./generate-quest-spec";
+import {
+  isQuestAiStale,
+  resolveQuestAiClaim,
+} from "./quest-ai-claim";
 import { selectQuestMode } from "./quest-mode";
 import {
-  canStartSecondAdventureRound,
   adventureRoundsAllowed,
-  SECOND_ADVENTURE_DATE,
 } from "./second-adventure-round";
+import {
+  canStartNextAdventureRound,
+} from "./next-adventure-round";
+import {
+  getPetAdventureTestPolicy,
+  type PetAdventureTestPolicy,
+} from "./test-policy";
+import {
+  canRevealReward,
+  type RewardDesignStatus,
+} from "./reward-reveal-policy";
 
 // These tables are introduced by the V1 migration and have not yet been
 // incorporated into the project's generated Database type. Use a scoped
@@ -37,6 +53,9 @@ type QuestRow = {
   test_round: number;
   quest_mode: "pet_actions" | "couple";
   ai_status: "legacy" | "pending" | "generating" | "gemini" | "failed" | "fallback";
+  ai_requested_at: string | null;
+  goal_template_id: string | null;
+  quest_prompt_version: string | null;
   action_type: QuestAction;
   goal: number;
   title: string;
@@ -60,6 +79,7 @@ type RewardRow = {
   position_y: number;
   size_scale: number;
   image_status: "none" | "generating" | "ready" | "failed";
+  design_status: RewardDesignStatus;
   image_path: string | null;
   created_at: string;
 };
@@ -68,6 +88,7 @@ export type PetAdventureState = {
   debugEnabled: boolean;
   imageTestEnabled: boolean;
   today: string;
+  testPolicy: PetAdventureTestPolicy;
   quest: {
     id: string;
     title: string;
@@ -81,8 +102,8 @@ export type PetAdventureState = {
     progress: number;
     completedAt: string | null;
     round: number;
-    maxRounds: number;
-    canStartSecondRound: boolean;
+    maxRounds: number | null;
+    canStartNextRound: boolean;
   };
   rewards: Array<{
     id: string;
@@ -97,6 +118,7 @@ export type PetAdventureState = {
     positionY: number;
     sizeScale: number;
     imageStatus: "none" | "generating" | "ready" | "failed";
+    designStatus: RewardDesignStatus;
     imageUrl: string | null;
     createdAt: string;
     isToday: boolean;
@@ -177,120 +199,315 @@ async function ensureQuest(db: SupabaseClient, petId: string, today: string) {
   return latest.data as QuestRow;
 }
 
-// Claim once before calling Gemini: two browsers must not pay for the same quest.
-async function maybeGenerateAdventureQuest(db: SupabaseClient, quest: QuestRow): Promise<QuestRow> {
-  if (quest.ai_status !== "pending") return quest;
-  const enabled = process.env.PET_ADVENTURE_AI_TASKS === "1" && !!process.env.GEMINI_API_KEY;
-  let canCall = enabled;
-  if (canCall) {
-    const { count, error } = await db.from("pet_adventure_quests")
-      .select("id", { count: "exact", head: true })
+// Only the atomic database claim may authorize a paid Gemini request.
+async function maybeGenerateAdventureQuest(
+  db: SupabaseClient,
+  quest: QuestRow,
+): Promise<QuestRow> {
+  async function reload(): Promise<QuestRow> {
+    const { data, error } = await db
+      .from("pet_adventure_quests")
+      .select("*")
+      .eq("id", quest.id)
       .eq("pet_id", quest.pet_id)
-      .eq("quest_date", quest.quest_date)
-      .in("ai_status", ["generating", "gemini", "failed"]);
-    ensureOk(error, "Failed to check daily AI quota");
-    canCall = (count ?? 0) < 5;
+      .single();
+
+    ensureOk(error, "Failed to reload AI quest");
+
+    return data as QuestRow;
   }
-  if (!canCall) {
-    const { error } = await db.from("pet_adventure_quests")
+
+  if (quest.ai_status === "generating") {
+    if (isQuestAiStale({
+      aiRequestedAt: quest.ai_requested_at,
+      createdAt: quest.created_at,
+    })) {
+      const staleBefore = new Date(
+        Date.now() - 20 * 60 * 1000,
+      ).toISOString();
+
+      let recovery = db
+        .from("pet_adventure_quests")
+        .update({ ai_status: "fallback" })
+        .eq("id", quest.id)
+        .eq("pet_id", quest.pet_id)
+        .eq("ai_status", "generating");
+
+      // A legacy generating row may have no claim timestamp.
+      // Never reserve a second paid request during recovery.
+      recovery = quest.ai_requested_at
+        ? recovery.lt("ai_requested_at", staleBefore)
+        : recovery
+            .is("ai_requested_at", null)
+            .lt("created_at", staleBefore);
+
+      const recovered = await recovery;
+
+      ensureOk(
+        recovered.error,
+        "Failed to recover stale AI quest",
+      );
+    }
+
+    return reload();
+  }
+
+  if (quest.ai_status !== "pending") {
+    return quest;
+  }
+
+  const enabled =
+    process.env.PET_ADVENTURE_AI_TASKS === "1" &&
+    !!process.env.GEMINI_API_KEY;
+
+  if (!enabled) {
+    const fallback = await db
+      .from("pet_adventure_quests")
       .update({ ai_status: "fallback" })
-      .eq("id", quest.id).eq("ai_status", "pending");
-    ensureOk(error, "Failed to finalize fallback quest");
-  } else {
-    const claimed = await db.from("pet_adventure_quests")
-      .update({ ai_status: "generating" })
-      .eq("id", quest.id).eq("ai_status", "pending")
-      .select("id").maybeSingle();
-    ensureOk(claimed.error, "Failed to claim AI generation");
-    if (claimed.data) {
-      try {
-        const result = quest.quest_mode === "couple"
-          ? await generateCoupleQuest(
-              quest.title,
-              quest.story,
-              quest.test_round,
-            )
-          : await generatePetActionQuest(
-              quest.title,
-              quest.story,
-              quest.test_round,
-              quest.action_type,
-              quest.goal,
-            );
-        const { error } = await db.from("pet_adventure_quests")
-          .update({ title: result.title, story: result.story, ai_status: "gemini" })
-          .eq("id", quest.id).eq("ai_status", "generating");
-        ensureOk(error, "Failed to save AI quest");
-      } catch (error) {
-        console.error("[pet-adventure] Gemini task generation failed; using fallback", error);
-        const { error: saveError } = await db.from("pet_adventure_quests")
-          .update({ ai_status: "failed" })
-          .eq("id", quest.id).eq("ai_status", "generating");
-        ensureOk(saveError, "Failed to mark AI fallback");
+      .eq("id", quest.id)
+      .eq("pet_id", quest.pet_id)
+      .eq("ai_status", "pending");
+
+    ensureOk(
+      fallback.error,
+      "Failed to finalize disabled AI quest",
+    );
+
+    return reload();
+  }
+
+  // The RPC locks the pet and checks the daily quota atomically.
+  // It reads the per-pet test override itself.
+  const claim = await db.rpc(
+    "claim_pet_adventure_quest_ai",
+    {
+      p_pet_id: quest.pet_id,
+      p_quest_id: quest.id,
+    },
+  );
+
+  ensureOk(claim.error, "Failed to claim AI quest");
+
+  const decision = resolveQuestAiClaim(claim.data);
+
+  if (decision === "fallback") {
+    const fallback = await db
+      .from("pet_adventure_quests")
+      .update({ ai_status: "fallback" })
+      .eq("id", quest.id)
+      .eq("pet_id", quest.pet_id)
+      .eq("ai_status", "pending");
+
+    ensureOk(fallback.error, "Failed to save quota fallback");
+    return reload();
+  }
+
+  if (decision === "skip") {
+    return reload();
+  }
+
+  // Only CLAIMED reaches this point.
+  // Every failure below keeps the claim timestamp.
+  try {
+    const current = await db
+      .from("pet_adventure_quests")
+      .select("completed_at")
+      .eq("id", quest.id)
+      .eq("pet_id", quest.pet_id)
+      .single();
+
+    ensureOk(
+      current.error,
+      "Failed to check quest completion",
+    );
+
+    if (current.data?.completed_at) {
+      const fallback = await db
+        .from("pet_adventure_quests")
+        .update({ ai_status: "fallback" })
+        .eq("id", quest.id)
+        .eq("ai_status", "generating");
+
+      ensureOk(
+        fallback.error,
+        "Failed to preserve completed quest",
+      );
+    } else {
+      const recent = await db
+        .from("pet_adventure_quests")
+        .select("title,story")
+        .eq("pet_id", quest.pet_id)
+        .neq("id", quest.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      ensureOk(
+        recent.error,
+        "Failed to read recent quests",
+      );
+
+      const result = await generateAdventureQuestSpec({
+        questMode: quest.quest_mode,
+        testRound: quest.test_round,
+        fallbackTitle: quest.title,
+        fallbackStory: quest.story,
+        recentQuests: recent.data ?? [],
+      });
+
+      const saved = await db
+        .from("pet_adventure_quests")
+        .update({
+          title: result.title,
+          story: result.story,
+          quest_mode: result.questMode,
+          action_type: result.actionType,
+          goal: result.goal,
+          goal_template_id: result.goalTemplateId,
+          quest_prompt_version: QUEST_PROMPT_VERSION,
+          ai_status: "gemini",
+        })
+        .eq("id", quest.id)
+        .eq("pet_id", quest.pet_id)
+        .eq("ai_status", "generating")
+        .is("completed_at", null)
+        .select("id")
+        .maybeSingle();
+
+      ensureOk(saved.error, "Failed to save AI quest");
+
+      if (!saved.data) {
+        // The quest changed while Gemini was working.
+        // Never overwrite a completed quest.
+        const fallback = await db
+          .from("pet_adventure_quests")
+          .update({ ai_status: "fallback" })
+          .eq("id", quest.id)
+          .eq("ai_status", "generating");
+
+        ensureOk(
+          fallback.error,
+          "Failed to finalize unchanged quest",
+        );
       }
     }
+  } catch (cause) {
+    console.error(
+      "[pet-adventure] AI quest generation failed",
+      cause instanceof Error ? cause.name : "unknown",
+    );
+
+    const failed = await db
+      .from("pet_adventure_quests")
+      .update({ ai_status: "failed" })
+      .eq("id", quest.id)
+      .eq("pet_id", quest.pet_id)
+      .eq("ai_status", "generating");
+
+    ensureOk(
+      failed.error,
+      "Failed to mark AI quest failure",
+    );
   }
-  const { data, error } = await db.from("pet_adventure_quests")
-    .select("*").eq("id", quest.id).single();
-  ensureOk(error, "Failed to reload AI quest");
-  return data as QuestRow;
+
+  return reload();
 }
 
 async function ensureReward(db: SupabaseClient, quest: QuestRow) {
   if (!quest.completed_at) return;
-  // ~25% of quests can award a new home background.
+
+  // Preserve the V4 reward allocation and fallback appearance.
+  // About 25% of reward slots are rooms.
   const kind: RewardKind = randomInt(4) === 0 ? "room" : "decor";
-  const variant = randomInt(kind === "room" ? ROOMS.length : DECORATIONS.length);
-  const appearance = rewardAppearance(kind, variant);
-  const waitMs = testToolsEnabled() ? 0 : REWARD_WAIT_MS;
-  const availableAt = new Date(Date.parse(quest.completed_at) + waitMs);
-  const { error } = await db.from("pet_adventure_rewards").upsert(
-    {
-      pet_id: quest.pet_id,
-      quest_id: quest.id,
-      reward_type: kind,
-      variant,
-      title: appearance.title,
-      story: appearance.story,
-      available_at: availableAt.toISOString(),
-    },
-    { onConflict: "quest_id", ignoreDuplicates: true },
+  const variant = randomInt(
+    kind === "room" ? ROOMS.length : DECORATIONS.length,
   );
+  const appearance = rewardAppearance(kind, variant);
+
+  const waitMs = testToolsEnabled() ? 0 : REWARD_WAIT_MS;
+  const availableAt = new Date(
+    Date.parse(quest.completed_at) + waitMs,
+  );
+
+  const designEnabled =
+    process.env.PET_ADVENTURE_AI_REWARDS === "1" &&
+    !!process.env.GEMINI_API_KEY;
+
+  // Existing rewards are never overwritten by the placeholder.
+  const { error } = await db
+    .from("pet_adventure_rewards")
+    .upsert(
+      {
+        pet_id: quest.pet_id,
+        quest_id: quest.id,
+        reward_type: kind,
+        variant,
+        title: appearance.title,
+        story: appearance.story,
+        available_at: availableAt.toISOString(),
+        design_status: designEnabled ? "pending" : "fallback",
+      },
+      {
+        onConflict: "quest_id",
+        ignoreDuplicates: true,
+      },
+    );
+
   ensureOk(error, "Failed to create mystery gift");
 
-  // 圖片為可選獎勵，排程失敗不能阻止任務完成。
-  // 使用固定 idempotencyKey，避免重複排程與付費。
-  if (
-    process.env.PET_ADVENTURE_AUTO_IMAGES === "1" &&
-    process.env.GEMINI_API_KEY
-  ) {
-    try {
-      const reward = await db
-        .from("pet_adventure_rewards")
-        .select("id,image_status")
-        .eq("quest_id", quest.id)
-        .single();
+  // Queue failures must not prevent quest completion.
+  // Refreshing the state may safely retry enqueueing:
+  // the durable idempotency key prevents duplicate jobs.
+  try {
+    const result = await db
+      .from("pet_adventure_rewards")
+      .select("id,design_status,image_status,choice")
+      .eq("quest_id", quest.id)
+      .eq("pet_id", quest.pet_id)
+      .single();
 
-      ensureOk(reward.error, "Failed to locate image reward");
+    ensureOk(result.error, "Failed to locate reward");
 
-      if (reward.data?.image_status === "none") {
-        await enqueueJob({
-          jobType: "pet.adventure.reward-image",
-          payload: {
-            petId: quest.pet_id,
-            rewardId: reward.data.id,
-          },
-          idempotencyKey:
-            `pet-adventure-image:${reward.data.id}`,
-          maxAttempts: 1,
-        });
-      }
-    } catch (cause) {
-      console.error(
-        "[pet-adventure] Image queue unavailable",
-        cause,
-      );
+    const reward = result.data;
+    if (!reward || reward.choice === "discarded") return;
+
+    if (reward.design_status === "pending") {
+      await enqueueJob({
+        jobType: "pet.adventure.reward-design",
+        payload: {
+          petId: quest.pet_id,
+          rewardId: reward.id,
+        },
+        idempotencyKey: `pet-adventure-design:${reward.id}`,
+        maxAttempts: 1,
+      });
+
+      return;
     }
+
+    // Images can start only after design resolution.
+    if (
+      (reward.design_status === "ready" ||
+        reward.design_status === "fallback" ||
+        reward.design_status === "legacy") &&
+      reward.image_status === "none" &&
+      process.env.PET_ADVENTURE_AUTO_IMAGES === "1" &&
+      process.env.GEMINI_API_KEY
+    ) {
+      await enqueueJob({
+        jobType: "pet.adventure.reward-image",
+        payload: {
+          petId: quest.pet_id,
+          rewardId: reward.id,
+        },
+        idempotencyKey: `pet-adventure-image:${reward.id}`,
+        maxAttempts: 1,
+      });
+    }
+  } catch (cause) {
+    console.error(
+      "[pet-adventure] Reward job enqueue failed",
+      cause,
+    );
   }
 }
 
@@ -298,8 +515,12 @@ export async function getPetAdventureStateAction(): Promise<PetAdventureState> {
   const { pet, db } = await context();
   const user = await requireUser();
   const today = taipeiDateKey(new Date());
+  const testPolicy = await getPetAdventureTestPolicy(db, pet.id);
   let quest = await ensureQuest(db, pet.id, today);
-  quest = await maybeGenerateAdventureQuest(db, quest);
+  quest = await maybeGenerateAdventureQuest(
+    db,
+    quest,
+  );
 
   let progress = 0;
   let myConfirmed = false;
@@ -362,6 +583,80 @@ export async function getPetAdventureStateAction(): Promise<PetAdventureState> {
     "Failed to recover stale image state",
   );
 
+  // Recover abandoned reward designs on state refresh.
+  // Never retry the paid Gemini design request.
+  // All transitions are guarded by their current database status.
+  const staleDesignResults = await Promise.all([
+    db.from("pet_adventure_rewards")
+      .update({ design_status: "fallback" })
+      .eq("pet_id", pet.id)
+      .eq("design_status", "pending")
+      .lt("created_at", staleBefore)
+      .select("id,image_status,choice"),
+
+    db.from("pet_adventure_rewards")
+      .update({ design_status: "fallback" })
+      .eq("pet_id", pet.id)
+      .eq("design_status", "generating")
+      .lt("design_requested_at", staleBefore)
+      .select("id,image_status,choice"),
+
+    db.from("pet_adventure_rewards")
+      .update({ design_status: "fallback" })
+      .eq("pet_id", pet.id)
+      .eq("design_status", "generating")
+      .is("design_requested_at", null)
+      .lt("created_at", staleBefore)
+      .select("id,image_status,choice"),
+
+    db.from("pet_adventure_rewards")
+      .update({ design_status: "fallback" })
+      .eq("pet_id", pet.id)
+      .eq("design_status", "failed")
+      .select("id,image_status,choice"),
+  ]);
+
+  for (const result of staleDesignResults) {
+    ensureOk(
+      result.error,
+      "Failed to recover stale reward designs",
+    );
+
+    if (
+      process.env.PET_ADVENTURE_AUTO_IMAGES !== "1" ||
+      !process.env.GEMINI_API_KEY
+    ) {
+      continue;
+    }
+
+    for (const recovered of result.data ?? []) {
+      if (
+        recovered.choice === "discarded" ||
+        recovered.image_status !== "none"
+      ) {
+        continue;
+      }
+
+      try {
+        await enqueueJob({
+          jobType: "pet.adventure.reward-image",
+          payload: {
+            petId: pet.id,
+            rewardId: recovered.id,
+          },
+          idempotencyKey:
+            `pet-adventure-image:${recovered.id}`,
+          maxAttempts: 1,
+        });
+      } catch (cause) {
+        console.error(
+          "[pet-adventure] Recovered reward image enqueue failed",
+          cause,
+        );
+      }
+    }
+  }
+
   const { data: allRewards, error: rewardsError } = await db.from("pet_adventure_rewards")
     .select("*")
     .eq("pet_id", pet.id)
@@ -372,11 +667,12 @@ export async function getPetAdventureStateAction(): Promise<PetAdventureState> {
 
   const currentRewardChoice = ((allRewards ?? []) as RewardRow[])
     .find((item) => item.quest_id === quest.id)?.choice ?? null;
-  const canStartSecondRound = canStartSecondAdventureRound({
+  const canStartNextRound = canStartNextAdventureRound({
     today,
     round: quest.test_round,
     completedAt: quest.completed_at,
     rewardChoice: currentRewardChoice,
+    unlimitedQuests: testPolicy.unlimitedQuests,
   });
 
   const serverNow = Date.now();
@@ -385,7 +681,12 @@ export async function getPetAdventureStateAction(): Promise<PetAdventureState> {
     .filter((item) => item.choice !== "discarded" || item.quest_id === quest.id)
     .map(async (item) => {
       // The mystery must not be revealed through Server Action network responses.
-      const hidden = item.choice === null && Date.parse(item.available_at) > serverNow;
+      const hidden = item.choice === null &&
+        !canRevealReward({
+          designStatus: item.design_status,
+          availableAt: item.available_at,
+          now: serverNow,
+        });
       let imageUrl: string | null = null;
 
       if (
@@ -422,6 +723,7 @@ export async function getPetAdventureStateAction(): Promise<PetAdventureState> {
         positionY: item.position_y,
         sizeScale: Number(item.size_scale ?? 1),
         imageStatus: item.image_status ?? "none",
+        designStatus: item.design_status,
         imageUrl,
         createdAt: item.created_at,
         isToday: item.quest_id === quest.id,
@@ -433,6 +735,7 @@ export async function getPetAdventureStateAction(): Promise<PetAdventureState> {
     imageTestEnabled: process.env.NODE_ENV === "development" &&
       process.env.PET_ADVENTURE_AI_IMAGES === "1",
     today,
+    testPolicy,
     quest: {
       id: quest.id,
       title: quest.title,
@@ -448,79 +751,139 @@ export async function getPetAdventureStateAction(): Promise<PetAdventureState> {
       progress,
       completedAt: quest.completed_at,
       round: quest.test_round + 1,
-      maxRounds: adventureRoundsAllowed(today),
-      canStartSecondRound,
+      maxRounds: testPolicy.unlimitedQuests
+        ? null
+        : adventureRoundsAllowed(today),
+      canStartNextRound,
     },
     rewards,
   };
 }
 
 
-/** One-day, shared-pet bonus round, with no repeat or reward reset. */
-export async function startPetAdventureSecondQuestAction(): Promise<{
+/**
+ * Start the next round through the atomic database RPC.
+ * The current user must be authorized for the shared pet.
+ */
+export async function startPetAdventureNextQuestAction(): Promise<{
   success: boolean;
   error?: string;
 }> {
   try {
     const { pet, db } = await context();
     const today = taipeiDateKey(new Date());
-    if (today !== SECOND_ADVENTURE_DATE) {
-      return { success: false, error: "今日限定的第二次任務已結束。" };
-    }
-    const first = await ensureQuest(db, pet.id, today);
-    if (first.test_round !== 0) {
-      return { success: false, error: "今天的第二次任務已經開始。" };
-    }
-    if (!first.completed_at) {
-      return { success: false, error: "請先完成第一次任務。" };
+    const current = await ensureQuest(db, pet.id, today);
+
+    if (!current.completed_at) {
+      return {
+        success: false,
+        error: "請先完成目前的冒險任務。",
+      };
     }
 
-    await ensureReward(db, first);
-    const gift = await db.from("pet_adventure_rewards")
+    await ensureReward(db, current);
+
+    const gift = await db
+      .from("pet_adventure_rewards")
       .select("choice")
       .eq("pet_id", pet.id)
-      .eq("quest_id", first.id)
+      .eq("quest_id", current.id)
       .single();
-    ensureOk(gift.error, "Failed to check first gift");
-    if (!canStartSecondAdventureRound({
+
+    ensureOk(gift.error, "Failed to check current reward");
+
+    const testPolicy = await getPetAdventureTestPolicy(
+      db,
+      pet.id,
+    );
+
+    const canStart = canStartNextAdventureRound({
       today,
-      round: first.test_round,
-      completedAt: first.completed_at,
+      round: current.test_round,
+      completedAt: current.completed_at,
       rewardChoice: gift.data?.choice ?? null,
-    })) {
-      return { success: false, error: "請先開箱並決定是否收下第一次的禮物。" };
+      unlimitedQuests: testPolicy.unlimitedQuests,
+    });
+
+    if (!canStart) {
+      return {
+        success: false,
+        error: gift.data?.choice === null
+          ? "請先開箱並決定收下或放棄目前的禮物。"
+          : "今天已達冒險輪數上限。",
+      };
     }
 
     const mode = selectQuestMode(randomInt(2));
-    const petCandidate = pickQuest(randomInt(QUESTS.length));
-    const coupleCandidate = pickCoupleQuest(randomInt(COUPLE_QUESTS.length));
-    const chosen = mode === "couple" ? coupleCandidate : petCandidate;
-    // Prevent creating yesterday's round if the request crosses Taipei midnight.
-    if (taipeiDateKey(new Date()) !== SECOND_ADVENTURE_DATE) {
-      return { success: false, error: "今日限定活動已結束。" };
+
+    const petCandidate = pickQuest(
+      randomInt(QUESTS.length),
+    );
+
+    const coupleCandidate = pickCoupleQuest(
+      randomInt(COUPLE_QUESTS.length),
+    );
+
+    const chosen = mode === "couple"
+      ? coupleCandidate
+      : petCandidate;
+
+    if (taipeiDateKey(new Date()) !== today) {
+      return {
+        success: false,
+        error: "日期已切換，請重新整理今日冒險。",
+      };
     }
 
-    const insert = await db.from("pet_adventure_quests").upsert({
-      pet_id: pet.id,
-      quest_date: today,
-      test_round: 1,
-      quest_mode: mode,
-      ai_status: "pending",
-      action_type: mode === "couple" ? "play" : petCandidate.action,
-      goal: mode === "couple" ? 2 : petCandidate.goal,
-      title: chosen.title,
-      story: chosen.story,
-    }, {
-      onConflict: "pet_id,quest_date,test_round",
-      ignoreDuplicates: true,
-    });
-    ensureOk(insert.error, "Failed to create second daily quest");
+    const { data, error } = await db.rpc(
+      "start_pet_adventure_next_round",
+      {
+        p_pet_id: pet.id,
+        p_quest_mode: mode,
+        p_action_type: mode === "couple"
+          ? "play"
+          : petCandidate.action,
+        p_goal: mode === "couple"
+          ? 2
+          : petCandidate.goal,
+        p_title: chosen.title,
+        p_story: chosen.story,
+      },
+    );
+
+    ensureOk(error, "Failed to start next adventure round");
+
+    if (data !== "CREATED") {
+      const messages: Record<string, string> = {
+        DAILY_LIMIT: "今天已達冒險輪數上限。",
+        NOT_COMPLETED: "目前任務尚未完成，或另一個裝置已開始新任務。",
+        REWARD_UNDECIDED: "請先處理目前的禮物。",
+        NO_QUEST: "找不到今日任務，請重新整理。",
+        DAY_CHANGED: "日期已切換，請重新整理。",
+        ROUND_OVERFLOW: "冒險輪數已達資料庫限制。",
+      };
+
+      return {
+        success: false,
+        error: messages[String(data)] ??
+          "無法建立下一輪任務，請重新整理。",
+      };
+    }
+
     revalidatePath("/pet");
     revalidatePath("/pet/adventure");
+
     return { success: true };
   } catch (cause) {
-    console.error("Second Pet Adventure round failed", cause);
-    return { success: false, error: "第二次任務建立失敗，請重新整理後再試。" };
+    console.error(
+      "Pet Adventure next round failed",
+      cause,
+    );
+
+    return {
+      success: false,
+      error: "下一輪任務建立失敗，請重新整理後再試。",
+    };
   }
 }
 
@@ -648,6 +1011,29 @@ async function mutateReward(
       return { success: false, error: "Invalid gift ID" };
     }
     const { pet, db } = await context();
+
+    if (operation === "accept" || operation === "decline") {
+      const gift = await db
+        .from("pet_adventure_rewards")
+        .select("design_status,available_at")
+        .eq("id", rewardId)
+        .eq("pet_id", pet.id)
+        .maybeSingle();
+
+      ensureOk(gift.error, "Failed to check reward reveal");
+
+      if (!gift.data || !canRevealReward({
+        designStatus: gift.data.design_status,
+        availableAt: gift.data.available_at,
+        now: Date.now(),
+      })) {
+        return {
+          success: false,
+          error: "禮物尚在準備中，請完成設計與倒數後再開箱。",
+        };
+      }
+    }
+
     let response: { data: unknown; error: { message: string } | null };
     if (operation === "accept" || operation === "decline") {
       response = await db.rpc("choose_pet_adventure_reward", {
