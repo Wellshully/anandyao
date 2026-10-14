@@ -16,8 +16,7 @@ import {
   getPetAdventureStateAction,
   generatePetAdventureRewardImageAction,
   confirmPetAdventureCoupleQuestAction,
-  movePetAdventureDecorationAction,
-  resizePetAdventureDecorationAction,
+  savePetAdventureRoomLayoutAction,
   rerollPetAdventureTestQuestAction,
   unlockPetAdventureTestRewardAction,
   type PetAdventureState,
@@ -31,6 +30,14 @@ import {
 
 type Props = { refreshSignal: number };
 type Reward = PetAdventureState["rewards"][number];
+type FurnitureDraft = {
+  x: number;
+  y: number;
+  scale: number;
+  expectedX: number;
+  expectedY: number;
+  expectedScale: number;
+};
 
 function isDiscardedChoice(choice: Reward["choice"]) {
   return choice === "discarded";
@@ -51,10 +58,20 @@ export default function PetAdventure({ refreshSignal }: Props) {
   const [now, setNow] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [tab, setTab] = useState<"quest" | "room">("quest");
+  const [tab, setTabState] = useState<"quest" | "room">("quest");
   const [editingFurniture, setEditingFurniture] = useState(false);
   const [selectedFurnitureId, setSelectedFurnitureId] = useState<string | null>(null);
-  const [sizePending, setSizePending] = useState(false);
+  const [roomDraft, setRoomDraft] = useState<Record<string, FurnitureDraft>>({});
+  const [savingRoom, setSavingRoom] = useState(false);
+  const editingFurnitureRef = useRef(false);
+
+  function setTab(next: "quest" | "room") {
+    if (editingFurnitureRef.current && next !== "room") {
+      setError("請先確認擺放或取消編輯，再切換頁籤。");
+      return;
+    }
+    setTabState(next);
+  }
 
   const roomRef = useRef<HTMLDivElement>(null);
 
@@ -80,20 +97,22 @@ export default function PetAdventure({ refreshSignal }: Props) {
     y: number;
   } | null>(null);
 
-  const [positionPending, setPositionPending] = useState(false);
-
   useEffect(() => {
     let live = true;
     async function refresh() {
+      if (editingFurnitureRef.current) return;
       try {
         const result = await getPetAdventureStateAction();
-        if (live) {
+        // Ignore in-flight refreshes that started before room editing.
+        if (live && !editingFurnitureRef.current) {
           setData(result);
           setError("");
           setNow(Date.now());
         }
       } catch {
-        if (live) setError("每日冒險暫時無法載入，請確認資料庫 Migration 已套用。");
+        if (live && !editingFurnitureRef.current) {
+          setError("每日冒險暫時無法載入，請確認資料庫 Migration 已套用。");
+        }
       }
     }
     void refresh();
@@ -120,9 +139,14 @@ export default function PetAdventure({ refreshSignal }: Props) {
     if (!locked) return;
     const delay = Math.max(0, Date.parse(locked.availableAt) - Date.now() + 400);
     const timer = window.setTimeout(() => {
+      if (editingFurnitureRef.current) return;
       void getPetAdventureStateAction()
-        .then((value) => setData(value))
-        .catch(() => setError("禮物揭曉失敗，請稍後再試。"));
+        .then((value) => {
+          if (!editingFurnitureRef.current) setData(value);
+        })
+        .catch(() => {
+          if (!editingFurnitureRef.current) setError("禮物揭曉失敗，請稍後再試。");
+        });
     }, delay);
     return () => window.clearTimeout(timer);
   }, [data]);
@@ -131,7 +155,7 @@ export default function PetAdventure({ refreshSignal }: Props) {
     id: string,
     action: "accept" | "decline" | "equip" | "unequip" | "discard",
   ) {
-    if (busy) return;
+    if (busy || editingFurnitureRef.current) return;
     setBusy(id);
     setError("");
     try {
@@ -179,7 +203,7 @@ export default function PetAdventure({ refreshSignal }: Props) {
 
 
   function startDrag(event: ReactPointerEvent<HTMLButtonElement>, item: Reward) {
-    if (!editingFurniture || busy || positionPending || !roomRef.current) {
+    if (!editingFurniture || busy || savingRoom || !roomRef.current) {
       return;
     }
 
@@ -189,8 +213,8 @@ export default function PetAdventure({ refreshSignal }: Props) {
 
     if (!box.width || !box.height) return;
 
-    const x = item.positionX;
-    const y = item.positionY;
+    const x = roomDraft[item.id]?.x ?? item.positionX;
+    const y = roomDraft[item.id]?.y ?? item.positionY;
 
     pointerRef.current = {
       pointerId: event.pointerId,
@@ -257,47 +281,22 @@ export default function PetAdventure({ refreshSignal }: Props) {
     setDragPosition(next);
   }
 
-  async function endDrag(
-    event: ReactPointerEvent<HTMLButtonElement>,
-  ) {
+  function endDrag(event: ReactPointerEvent<HTMLButtonElement>) {
     const pointer = pointerRef.current;
-
-    if (!pointer || pointer.pointerId !== event.pointerId) {
-      return;
-    }
+    if (!pointer || pointer.pointerId !== event.pointerId) return;
 
     moveDrag(event);
     pointerRef.current = null;
-
     const last = positionRef.current;
-
-    if (!pointer.moved || !last || last.id !== pointer.itemId) {
-      setDragPosition(null);
-      return;
+    if (pointer.moved && last && last.id === pointer.itemId) {
+      setRoomDraft((draft) => {
+        const entry = draft[last.id];
+        if (!entry) return draft;
+        return { ...draft, [last.id]: { ...entry, x: last.x, y: last.y } };
+      });
     }
-
-    setPositionPending(true);
-    setError("");
-
-    try {
-      const result = await movePetAdventureDecorationAction(
-        last.id,
-        last.x,
-        last.y,
-      );
-
-      if (!result.success) {
-        setError(result.error ?? "位置儲存失敗");
-      }
-
-      setData(await getPetAdventureStateAction());
-    } catch {
-      setError("位置儲存失敗，請重新整理後再試。");
-    } finally {
-      setPositionPending(false);
-      setDragPosition(null);
-      positionRef.current = null;
-    }
+    positionRef.current = null;
+    setDragPosition(null);
   }
 
   function cancelDrag() {
@@ -306,40 +305,110 @@ export default function PetAdventure({ refreshSignal }: Props) {
     setDragPosition(null);
   }
 
-
-  async function resizeFurniture(item: Reward, newScale: number) {
-    if (!editingFurniture || busy || sizePending || positionPending) {
-      return;
-    }
-
+  function resizeFurniture(item: Reward, newScale: number) {
+    if (!editingFurniture || busy || savingRoom) return;
     const scale = Math.round(newScale * 4) / 4;
+    const previousScale = roomDraft[item.id]?.scale ?? item.sizeScale;
+    if (scale < 0.5 || scale > 2 || scale === previousScale) return;
+    setRoomDraft((draft) => {
+      const entry = draft[item.id];
+      return entry ? { ...draft, [item.id]: { ...entry, scale } } : draft;
+    });
+  }
 
-    if (
-      scale < 0.5 ||
-      scale > 2 ||
-      scale === item.sizeScale
-    ) {
+  function beginRoomEdit() {
+    if (!data || busy || savingRoom || editingFurnitureRef.current) return;
+    const draft: Record<string, FurnitureDraft> = {};
+    for (const item of decorGifts) {
+      draft[item.id] = {
+        x: item.positionX,
+        y: item.positionY,
+        scale: item.sizeScale,
+        expectedX: item.positionX,
+        expectedY: item.positionY,
+        expectedScale: item.sizeScale,
+      };
+    }
+    editingFurnitureRef.current = true;
+    setRoomDraft(draft);
+    setEditingFurniture(true);
+    setSelectedFurnitureId(null);
+    setError("");
+  }
+
+  function cancelRoomEdit() {
+    if (savingRoom) return;
+    editingFurnitureRef.current = false;
+    cancelDrag();
+    setRoomDraft({});
+    setEditingFurniture(false);
+    setSelectedFurnitureId(null);
+    setError("");
+    // Reconcile remote changes made while the local draft was open.
+    void getPetAdventureStateAction()
+      .then((result) => {
+        if (!editingFurnitureRef.current) setData(result);
+      })
+      .catch(() => setError("房間更新失敗，請稍後重新整理。"));
+  }
+
+  async function saveRoomEdit() {
+    if (!editingFurnitureRef.current || busy || savingRoom || pointerRef.current) return;
+    const updates = decorGifts.flatMap((item) => {
+      const entry = roomDraft[item.id];
+      if (!entry || (
+        entry.x === entry.expectedX &&
+        entry.y === entry.expectedY &&
+        entry.scale === entry.expectedScale
+      )) return [];
+      return [{
+        id: item.id,
+        x: entry.x,
+        y: entry.y,
+        scale: entry.scale,
+        expectedX: entry.expectedX,
+        expectedY: entry.expectedY,
+        expectedScale: entry.expectedScale,
+      }];
+    });
+
+    if (updates.length === 0) {
+      cancelRoomEdit();
       return;
     }
 
-    setSizePending(true);
+    setSavingRoom(true);
     setError("");
-
     try {
-      const result = await resizePetAdventureDecorationAction(
-        item.id,
-        scale,
-      );
-
+      const result = await savePetAdventureRoomLayoutAction(updates);
       if (!result.success) {
-        setError(result.error ?? "家具大小儲存失敗。");
+        setError(result.error ?? "房間儲存失敗，請重試或取消編輯。");
+        return;
       }
-
-      setData(await getPetAdventureStateAction());
+      // Optimistic final state preserves the existing image URLs and avoids
+      // a full room teardown/reload immediately after a successful save.
+      const byId = new Map(updates.map((item) => [item.id, item]));
+      setData((current) => current ? {
+        ...current,
+        rewards: current.rewards.map((item) => {
+          const edit = byId.get(item.id);
+          return edit ? {
+            ...item,
+            positionX: edit.x,
+            positionY: edit.y,
+            sizeScale: edit.scale,
+          } : item;
+        }),
+      } : current);
+      editingFurnitureRef.current = false;
+      setEditingFurniture(false);
+      setRoomDraft({});
+      setSelectedFurnitureId(null);
+      cancelDrag();
     } catch {
-      setError("家具大小儲存失敗，請重新整理後再試。");
+      setError("網路連線失敗，草稿仍保留；請重新確認或取消編輯。");
     } finally {
-      setSizePending(false);
+      setSavingRoom(false);
     }
   }
 
@@ -409,10 +478,32 @@ export default function PetAdventure({ refreshSignal }: Props) {
   const selectedFurniture = decorGifts.find(
     (item) => item.id === selectedFurnitureId,
   );
+  const selectedFurnitureScale = selectedFurniture
+    ? roomDraft[selectedFurniture.id]?.scale ?? selectedFurniture.sizeScale
+    : 1;
+  const hasRoomChanges = decorGifts.some((item) => {
+    const entry = roomDraft[item.id];
+    return !!entry && (
+      entry.x !== entry.expectedX ||
+      entry.y !== entry.expectedY ||
+      entry.scale !== entry.expectedScale
+    );
+  });
   const storedCount = inventory.filter(
     (reward) => !reward.equipped,
   ).length;
   const room = roomGift ? rewardAppearance("room", roomGift.variant) : ROOMS[0];
+
+  // Warn if the browser tab is closed or reloaded with unsaved changes.
+  useEffect(() => {
+    if (!editingFurniture || !hasRoomChanges) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [editingFurniture, hasRoomChanges]);
 
   return (
     <section className="mx-auto mt-2 w-full max-w-6xl sm:mt-4">
@@ -660,20 +751,40 @@ export default function PetAdventure({ refreshSignal }: Props) {
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs text-[var(--muted)]">
-                  {editingFurniture ? "編輯中 · 拖曳家具調整位置" : "家具已鎖定，避免誤觸"}
+                  {editingFurniture
+                    ? hasRoomChanges ? "編輯中 · 有尚未儲存的變更" : "編輯中 · 尚未修改"
+                    : "家具已鎖定，避免誤觸"}
                 </span>
 
-                <button
-                  type="button"
-                  disabled={!!busy || positionPending}
-                  onClick={() => {
-                    cancelDrag();
-                    setEditingFurniture((current) => !current);
-                  }}
-                  className={editingFurniture ? strongButton : smallButton}
-                >
-                  {editingFurniture ? "完成編輯" : "編輯家具"}
-                </button>
+                {editingFurniture ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className={smallButton}
+                      disabled={savingRoom}
+                      onClick={cancelRoomEdit}
+                    >
+                      取消編輯
+                    </button>
+                    <button
+                      type="button"
+                      className={strongButton}
+                      disabled={savingRoom || !!busy}
+                      onClick={() => void saveRoomEdit()}
+                    >
+                      {savingRoom ? "儲存中…" : hasRoomChanges ? "確認擺放" : "完成編輯"}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!!busy || savingRoom}
+                    onClick={beginRoomEdit}
+                    className={smallButton}
+                  >
+                    編輯家具
+                  </button>
+                )}
               </div>
               <div
                 ref={roomRef}
@@ -719,18 +830,20 @@ export default function PetAdventure({ refreshSignal }: Props) {
                   />
                 </div>
                 {decorGifts.map((item) => {
+                  const draft = roomDraft[item.id];
                   const pos = dragPosition?.id === item.id
                     ? dragPosition
                     : {
-                        x: item.positionX,
-                        y: item.positionY,
+                        x: editingFurniture ? draft?.x ?? item.positionX : item.positionX,
+                        y: editingFurniture ? draft?.y ?? item.positionY : item.positionY,
                       };
+                  const scale = editingFurniture ? draft?.scale ?? item.sizeScale : item.sizeScale;
 
                   return (
                     <button
                       key={item.id}
                       type="button"
-                      disabled={!editingFurniture || !!busy || positionPending || sizePending}
+                      disabled={!editingFurniture || !!busy || savingRoom}
                       aria-label={`移動${item.title}：先開啟編輯家具，再拖曳`}
                       title={item.title}
                       data-pet-furniture="true"
@@ -740,7 +853,7 @@ export default function PetAdventure({ refreshSignal }: Props) {
                         startDrag(event, item);
                       }}
                       onPointerMove={moveDrag}
-                      onPointerUp={(event) => void endDrag(event)}
+                      onPointerUp={endDrag}
                       onPointerCancel={cancelDrag}
                       onDragStart={(event) => event.preventDefault()}
                       className={`absolute z-[60] flex h-24 w-24 select-none items-center justify-center rounded-full drop-shadow-md sm:h-[7.5rem] sm:w-[7.5rem] ${
@@ -753,7 +866,7 @@ export default function PetAdventure({ refreshSignal }: Props) {
                       style={{
                         left: `${pos.x * 100}%`,
                         top: `${pos.y * 100}%`,
-                        transform: `translate(-50%, -50%) scale(${item.sizeScale})`,
+                        transform: `translate(-50%, -50%) scale(${scale})`,
                       }}
                     >
                       {item.imageUrl ? (
@@ -787,17 +900,17 @@ export default function PetAdventure({ refreshSignal }: Props) {
                   {selectedFurniture ? (
                     <div className="space-y-2">
                       <p className="text-sm font-medium">
-                        已選取：{selectedFurniture.title} · {selectedFurniture.sizeScale.toFixed(2)}×
+                        已選取：{selectedFurniture.title} · {selectedFurnitureScale.toFixed(2)}×
                       </p>
 
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           className={smallButton}
-                          disabled={!!busy || positionPending || sizePending || selectedFurniture.sizeScale <= 0.5}
+                          disabled={!!busy || savingRoom || selectedFurnitureScale <= 0.5}
                           onClick={() => void resizeFurniture(
                             selectedFurniture,
-                            selectedFurniture.sizeScale - 0.25,
+                            selectedFurnitureScale - 0.25,
                           )}
                         >
                           縮小 −
@@ -806,10 +919,10 @@ export default function PetAdventure({ refreshSignal }: Props) {
                         <button
                           type="button"
                           className={smallButton}
-                          disabled={!!busy || positionPending || sizePending || selectedFurniture.sizeScale >= 2}
+                          disabled={!!busy || savingRoom || selectedFurnitureScale >= 2}
                           onClick={() => void resizeFurniture(
                             selectedFurniture,
-                            selectedFurniture.sizeScale + 0.25,
+                            selectedFurnitureScale + 0.25,
                           )}
                         >
                           放大 ＋
@@ -818,7 +931,7 @@ export default function PetAdventure({ refreshSignal }: Props) {
                         <button
                           type="button"
                           className={smallButton}
-                          disabled={!!busy || positionPending || sizePending || selectedFurniture.sizeScale === 1}
+                          disabled={!!busy || savingRoom || selectedFurnitureScale === 1}
                           onClick={() => void resizeFurniture(
                             selectedFurniture,
                             1,
@@ -829,7 +942,7 @@ export default function PetAdventure({ refreshSignal }: Props) {
                       </div>
 
                       <p className="text-xs text-[var(--muted)]">
-                        0.5×～2×，每次調整 0.25×，每件家具獨立儲存。
+                        0.5×～2×，每次調整 0.25×；確認擺放後才會同步資料庫。
                       </p>
                     </div>
                   ) : (
@@ -839,7 +952,7 @@ export default function PetAdventure({ refreshSignal }: Props) {
                   )}
                 </div>
               )}
-              <p className="text-xs text-[var(--muted)]">房間最多擺放 10 件，倉庫最多存放 50 件。點「編輯家具」後可逐件拖曳，放開就會儲存位置。</p>
+              <p className="text-xs text-[var(--muted)]">房間最多擺放 10 件，倉庫最多存放 50 件。編輯時拖曳及縮放只會修改本機草稿；按「確認擺放」才一次儲存。</p>
               <h3 className="font-story font-semibold">收藏與倉庫（倉庫 {storedCount}/50 · 房間 {decorGifts.length}/10）</h3>
               {inventory.length === 0 ? (
                 <p className="rounded-xl bg-[var(--surface-soft)] p-4 text-sm text-[var(--muted)]">目前還沒有收藏。先完成任務、開箱並收下禮物吧。</p>
@@ -864,11 +977,11 @@ export default function PetAdventure({ refreshSignal }: Props) {
                         </div>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <button type="button" disabled={!!busy} className={strongButton}
+                        <button type="button" disabled={!!busy || editingFurniture} className={strongButton}
                           onClick={() => void change(item.id, item.equipped ? "unequip" : "equip")}>
                           {item.equipped ? "收起擺設" : item.kind === "room" ? "使用房間" : "放進房間"}
                         </button>
-                        <button type="button" disabled={!!busy} className={smallButton}
+                        <button type="button" disabled={!!busy || editingFurniture} className={smallButton}
                           onClick={() => {
                             if (window.confirm(`確定丟棄「${item.title}」嗎？這個動作無法復原。`)) {
                               void change(item.id, "discard");

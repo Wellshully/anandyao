@@ -1098,6 +1098,120 @@ export async function discardPetAdventureRewardAction(rewardId: string) {
   return mutateReward(rewardId, "discard");
 }
 
+export type PetAdventureRoomLayoutUpdate = {
+  id: string;
+  x: number;
+  y: number;
+  scale: number;
+  expectedX: number;
+  expectedY: number;
+  expectedScale: number;
+};
+
+/**
+ * Save all edited furniture positions and scales in one
+ * atomic PostgreSQL transaction.
+ *
+ * A conflicting or outdated draft is rejected without
+ * overwriting another player's changes.
+ */
+export async function savePetAdventureRoomLayoutAction(
+  updates: PetAdventureRoomLayoutUpdate[],
+): Promise<{ success: boolean; error?: string }> {
+  if (
+    !Array.isArray(updates) ||
+    updates.length < 1 ||
+    updates.length > 10
+  ) {
+    return {
+      success: false,
+      error: "一次最多儲存 10 件家具。",
+    };
+  }
+
+  const ids = new Set<string>();
+
+  for (const item of updates) {
+    if (
+      !item ||
+      typeof item !== "object" ||
+      typeof item.id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(item.id) ||
+      ids.has(item.id)
+    ) {
+      return {
+        success: false,
+        error: "家具資料無效或包含重複項目。",
+      };
+    }
+
+    ids.add(item.id);
+
+    const values = [
+      item.x,
+      item.y,
+      item.scale,
+      item.expectedX,
+      item.expectedY,
+      item.expectedScale,
+    ];
+
+    if (
+      !values.every((value) =>
+        typeof value === "number" &&
+        Number.isFinite(value)
+      ) ||
+      item.x < 0.08 ||
+      item.x > 0.92 ||
+      item.y < 0.10 ||
+      item.y > 0.90 ||
+      item.scale < 0.5 ||
+      item.scale > 2 ||
+      !Number.isInteger(item.scale * 4)
+    ) {
+      return {
+        success: false,
+        error: "家具位置或大小超出允許範圍。",
+      };
+    }
+  }
+
+  try {
+    const { pet, db } = await context();
+
+    const { data, error } = await db.rpc(
+      "save_pet_adventure_room_layout",
+      {
+        p_pet_id: pet.id,
+        p_items: updates,
+      },
+    );
+
+    ensureOk(error, "Failed to save room layout");
+
+    if (data !== true) {
+      return {
+        success: false,
+        error: "房間配置已被其他人修改，或家具已被收起。請取消編輯並重新載入房間。",
+      };
+    }
+
+    revalidatePath("/pet/adventure");
+
+    return { success: true };
+  } catch (cause) {
+    console.error(
+      "[pet-adventure] Room layout save failed",
+      cause,
+    );
+
+    return {
+      success: false,
+      error: "房間儲存失敗，請確認網路連線後再試。",
+    };
+  }
+}
+
 export async function movePetAdventureDecorationAction(
   rewardId: string,
   x: number,
