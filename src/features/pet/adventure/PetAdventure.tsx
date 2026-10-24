@@ -471,6 +471,17 @@ export default function PetAdventure({ refreshSignal }: Props) {
 
   const latest = data?.rewards.find((reward) => reward.isToday);
   const inventory = data?.rewards.filter((reward) => reward.choice === "accepted") ?? [];
+
+  const pendingRewards = data?.rewards.filter((reward) =>
+    !reward.isToday &&
+    reward.choice === null &&
+    canRevealReward({
+      designStatus: reward.designStatus,
+      availableAt: reward.availableAt,
+      now,
+    })
+  ) ?? [];
+
   const roomGift = inventory.find((reward) => reward.kind === "room" && reward.equipped);
   const decorGifts = inventory.filter(
     (reward) => reward.kind === "decor" && reward.equipped,
@@ -620,6 +631,58 @@ export default function PetAdventure({ refreshSignal }: Props) {
                           立即開箱（測試）
                         </button>
                       )}
+                  </div>
+                </div>
+              )}
+
+              {pendingRewards.length > 0 && (
+                <div className="rounded-2xl border border-[var(--border)] p-4">
+                  <h3 className="font-story font-semibold">
+                    待領取禮物（{pendingRewards.length}）
+                  </h3>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    先前完成任務、但尚未領取的禮物。
+                  </p>
+                  <div className="mt-3 space-y-3">
+                    {pendingRewards.map((gift) => (
+                      <div
+                        key={gift.id}
+                        className="rounded-xl bg-[var(--surface-soft)] p-3"
+                      >
+                        {gift.imageUrl && (
+                          <div
+                            role="img"
+                            aria-label={`${gift.title}的圖片`}
+                            className="mx-auto mb-3 h-32 w-32 bg-contain bg-center bg-no-repeat"
+                            style={{
+                              backgroundImage: `url("${gift.imageUrl}")`,
+                            }}
+                          />
+                        )}
+                        <p className="text-sm font-semibold">{gift.title}</p>
+                        <p className="mt-1 whitespace-pre-line text-sm text-[var(--muted)]">
+                          {gift.story}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className={strongButton}
+                            disabled={!!busy}
+                            onClick={() => void change(gift.id, "accept")}
+                          >
+                            收下禮物
+                          </button>
+                          <button
+                            type="button"
+                            className={smallButton}
+                            disabled={!!busy}
+                            onClick={() => void change(gift.id, "decline")}
+                          >
+                            放棄禮物
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

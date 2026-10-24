@@ -660,7 +660,7 @@ export async function getPetAdventureStateAction(): Promise<PetAdventureState> {
   const { data: allRewards, error: rewardsError } = await db.from("pet_adventure_rewards")
     .select("*")
     .eq("pet_id", pet.id)
-    .or(`choice.eq.accepted,quest_id.eq.${quest.id}`)
+    .or(`choice.eq.accepted,choice.is.null,quest_id.eq.${quest.id}`)
     .order("created_at", { ascending: false })
     .limit(100);
   ensureOk(rewardsError, "Failed to read pet rewards");
