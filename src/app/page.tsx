@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 
 import BirthdayExperience from "@/features/birthday/components/BirthdayExperience";
@@ -9,6 +10,7 @@ import { requireSpace } from "@/lib/space/require-space";
 type HomePageProps = {
   searchParams: Promise<{
     preview?: string | string[];
+    birthday?: string | string[];
   }>;
 };
 
@@ -20,7 +22,12 @@ export default async function Home({ searchParams }: HomePageProps) {
   const previewBirthday =
     process.env.NODE_ENV === "development" && params.preview === "birthday";
 
-  const showBirthday = previewBirthday || isBirthday(new Date());
+  const birthdayDismissed =
+    params.birthday === "done" ||
+    (await cookies()).get("an_yao_birthday_seen")?.value === "1";
+
+  const showBirthday =
+    previewBirthday || (isBirthday(new Date()) && !birthdayDismissed);
 
   if (showBirthday) {
     return <BirthdayExperience />;
